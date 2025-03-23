@@ -1,16 +1,16 @@
 package main
 
 import (
-	_ "embed"
-	"flag"
-	"fmt"
-	"log"
-	"strings"
-	"time"
+        _ "embed"
+        "flag"
+        "fmt"
+        "log"
+        "strings"
+        "time"
 
-	"github.com/signintech/gopdf"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+        "github.com/signintech/gopdf"
+        "github.com/spf13/cobra"
+        "github.com/spf13/viper"
 )
 
 //go:embed "Inter/Inter Variable/Inter.ttf"
@@ -19,170 +19,210 @@ var interFont []byte
 //go:embed "Inter/Inter Hinted for Windows/Desktop/Inter-Bold.ttf"
 var interBoldFont []byte
 
+type Footer struct {
+        CompanyName      string `json:"companyName" yaml:"companyName"`
+        RegistrationInfo string `json:"registrationInfo" yaml:"registrationInfo"`
+        VatId            string `json:"vatId" yaml:"vatId"`
+        Address          string `json:"address" yaml:"address"`
+        City             string `json:"city" yaml:"city"`
+        Zip              string `json:"zip" yaml:"zip"`
+        Phone            string `json:"phone" yaml:"phone"`
+        Email            string `json:"email" yaml:"email"`
+        Website          string `json:"website" yaml:"website"`
+        BankName         string `json:"bankName" yaml:"bankName"`
+        BankIban         string `json:"bankIban" yaml:"bankIban"`
+        BankBic          string `json:"bankBic" yaml:"bankBic"`
+}
+
 type Invoice struct {
-	Id            string `json:"id" yaml:"id"`
-	IdSuffix      string `json:"idSuffix" yaml:"idSuffix"` // New field for invoice number suffix
-	Title         string `json:"title" yaml:"title"`
+        Id            string `json:"id" yaml:"id"`
+        IdSuffix      string `json:"idSuffix" yaml:"idSuffix"` // New field for invoice number suffix
+        Title         string `json:"title" yaml:"title"`
 
-	Logo string `json:"logo" yaml:"logo"`
-	From string `json:"from" yaml:"from"`
-	To   string `json:"to" yaml:"to"`
-	Date string `json:"date" yaml:"date"`
-	Due  string `json:"due" yaml:"due"`
+        Logo string `json:"logo" yaml:"logo"`
+        From string `json:"from" yaml:"from"`
+        To   string `json:"to" yaml:"to"`
+        Date string `json:"date" yaml:"date"`
+        Due  string `json:"due" yaml:"due"`
 
-	Items      []string  `json:"items" yaml:"items"`
-	Quantities []int     `json:"quantities" yaml:"quantities"`
-	Rates      []float64 `json:"rates" yaml:"rates"`
+        Items      []string  `json:"items" yaml:"items"`
+        Quantities []int     `json:"quantities" yaml:"quantities"`
+        Rates      []float64 `json:"rates" yaml:"rates"`
 
-	Tax      float64 `json:"tax" yaml:"tax"`
-	Discount float64 `json:"discount" yaml:"discount"`
-	Currency string  `json:"currency" yaml:"currency"`
+        Tax      float64 `json:"tax" yaml:"tax"`
+        Discount float64 `json:"discount" yaml:"discount"`
+        Currency string  `json:"currency" yaml:"currency"`
 
-	Note string `json:"note" yaml:"note"`
+        Note string `json:"note" yaml:"note"`
+
+        // Footer information
+        Footer Footer `json:"footer" yaml:"footer"`
+}
+
+func DefaultFooter() Footer {
+        return Footer{
+                CompanyName:      "Firma GmbH",
+                RegistrationInfo: "Registergericht München, HRB 123456",
+                VatId:            "USt-IdNr. DE123456789",
+                Address:          "Musterstraße 123",
+                City:             "München",
+                Zip:              "80331",
+                Phone:            "+49 89 1234567",
+                Email:            "info@firma.de",
+                Website:          "www.firma.de",
+                BankName:         "Sparkasse München",
+                BankIban:         "DE12 3456 7890 1234 5678 90",
+                BankBic:          "ABCDEFGHXXX",
+        }
 }
 
 func DefaultInvoice() Invoice {
-	return Invoice{
-		Id:         time.Now().Format("20060102"),
-		IdSuffix:   "",  // Default empty suffix
-		Title:      "RECHNUNG", // Use German title
-		Rates:      []float64{25},
-		Quantities: []int{2},
-		Items:      []string{"Dienstleistung"}, // Changed to German default
-		From:       "Firma GmbH",  // Changed to German default
-		To:         "Kunde GmbH",  // Changed to German default
-		Date:       time.Now().Format("02.01.2006"), // German date format (day.month.year)
-		Due:        time.Now().AddDate(0, 0, 14).Format("02.01.2006"), // German date format
-		Tax:        0.19, // Default German VAT rate (19%)
-		Discount:   0,
-		Currency:   "EUR", // Default to Euro
-	}
+        return Invoice{
+                Id:         time.Now().Format("20060102"),
+                IdSuffix:   "",  // Default empty suffix
+                Title:      "RECHNUNG", // Use German title
+                Rates:      []float64{25},
+                Quantities: []int{2},
+                Items:      []string{"Dienstleistung"}, // Changed to German default
+                From:       "Firma GmbH",  // Changed to German default
+                To:         "Kunde GmbH",  // Changed to German default
+                Date:       time.Now().Format("02.01.2006"), // German date format (day.month.year)
+                Due:        time.Now().AddDate(0, 0, 14).Format("02.01.2006"), // German date format
+                Tax:        0.19, // Default German VAT rate (19%)
+                Discount:   0,
+                Currency:   "EUR", // Default to Euro
+                Footer:     DefaultFooter(), // Default footer information
+        }
 }
 
 var (
-	importPath     string
-	output         string
-	file           = Invoice{}
-	defaultInvoice = DefaultInvoice()
+        importPath     string
+        output         string
+        file           = Invoice{}
+        defaultInvoice = DefaultInvoice()
 )
 
 func init() {
-	viper.AutomaticEnv()
+        viper.AutomaticEnv()
 
-	generateCmd.Flags().StringVar(&importPath, "import", "", "Imported file (.json/.yaml)")
-	generateCmd.Flags().StringVar(&file.Id, "id", time.Now().Format("20060102"), "ID")
-	generateCmd.Flags().StringVar(&file.IdSuffix, "id-suffix", "", "Invoice Number Suffix (e.g. -R1, -A, etc.)")
-	generateCmd.Flags().StringVar(&file.Title, "title", "RECHNUNG", "Title")
+        generateCmd.Flags().StringVar(&importPath, "import", "", "Imported file (.json/.yaml)")
+        generateCmd.Flags().StringVar(&file.Id, "id", time.Now().Format("20060102"), "ID")
+        generateCmd.Flags().StringVar(&file.IdSuffix, "id-suffix", "", "Invoice Number Suffix (e.g. -R1, -A, etc.)")
+        generateCmd.Flags().StringVar(&file.Title, "title", "RECHNUNG", "Title")
 
-	generateCmd.Flags().Float64SliceVarP(&file.Rates, "rate", "r", defaultInvoice.Rates, "Rates")
-	generateCmd.Flags().IntSliceVarP(&file.Quantities, "quantity", "q", defaultInvoice.Quantities, "Quantities")
-	generateCmd.Flags().StringSliceVarP(&file.Items, "item", "i", defaultInvoice.Items, "Items")
+        generateCmd.Flags().Float64SliceVarP(&file.Rates, "rate", "r", defaultInvoice.Rates, "Rates")
+        generateCmd.Flags().IntSliceVarP(&file.Quantities, "quantity", "q", defaultInvoice.Quantities, "Quantities")
+        generateCmd.Flags().StringSliceVarP(&file.Items, "item", "i", defaultInvoice.Items, "Items")
 
-	generateCmd.Flags().StringVarP(&file.Logo, "logo", "l", defaultInvoice.Logo, "Company logo")
-	generateCmd.Flags().StringVarP(&file.From, "from", "f", defaultInvoice.From, "Issuing company")
-	generateCmd.Flags().StringVarP(&file.To, "to", "t", defaultInvoice.To, "Recipient company")
-	generateCmd.Flags().StringVar(&file.Date, "date", defaultInvoice.Date, "Date")
-	generateCmd.Flags().StringVar(&file.Due, "due", defaultInvoice.Due, "Payment due date")
+        generateCmd.Flags().StringVarP(&file.Logo, "logo", "l", defaultInvoice.Logo, "Company logo")
+        generateCmd.Flags().StringVarP(&file.From, "from", "f", defaultInvoice.From, "Issuing company")
+        generateCmd.Flags().StringVarP(&file.To, "to", "t", defaultInvoice.To, "Recipient company")
+        generateCmd.Flags().StringVar(&file.Date, "date", defaultInvoice.Date, "Date")
+        generateCmd.Flags().StringVar(&file.Due, "due", defaultInvoice.Due, "Payment due date")
 
-	generateCmd.Flags().Float64Var(&file.Tax, "tax", defaultInvoice.Tax, "Tax")
-	generateCmd.Flags().Float64VarP(&file.Discount, "discount", "d", defaultInvoice.Discount, "Discount")
-	generateCmd.Flags().StringVarP(&file.Currency, "currency", "c", defaultInvoice.Currency, "Currency")
+        generateCmd.Flags().Float64Var(&file.Tax, "tax", defaultInvoice.Tax, "Tax")
+        generateCmd.Flags().Float64VarP(&file.Discount, "discount", "d", defaultInvoice.Discount, "Discount")
+        generateCmd.Flags().StringVarP(&file.Currency, "currency", "c", defaultInvoice.Currency, "Currency")
 
-	generateCmd.Flags().StringVarP(&file.Note, "note", "n", "", "Note")
-	generateCmd.Flags().StringVarP(&output, "output", "o", "invoice.pdf", "Output file (.pdf)")
+        generateCmd.Flags().StringVarP(&file.Note, "note", "n", "", "Note")
+        generateCmd.Flags().StringVarP(&output, "output", "o", "invoice.pdf", "Output file (.pdf)")
 
-	flag.Parse()
+        flag.Parse()
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "invoice",
-	Short: "Invoice generates invoices from the command line.",
-	Long:  `Invoice generates invoices from the command line.`,
+        Use:   "invoice",
+        Short: "Invoice generates invoices from the command line.",
+        Long:  `Invoice generates invoices from the command line.`,
 }
 
 var generateCmd = &cobra.Command{
-	Use:   "generate",
-	Short: "Generate an invoice",
-	Long:  `Generate an invoice`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+        Use:   "generate",
+        Short: "Generate an invoice",
+        Long:  `Generate an invoice`,
+        RunE: func(cmd *cobra.Command, args []string) error {
+                log.Printf("DEBUG: Starting invoice generation")
 
-		if importPath != "" {
-			err := importData(importPath, &file, cmd.Flags())
-			if err != nil {
-				return err
-			}
-		}
+                if importPath != "" {
+                        log.Printf("DEBUG: Importing from %s", importPath)
+                        err := importData(importPath, &file, cmd.Flags())
+                        if err != nil {
+                                log.Printf("ERROR: Import failed: %v", err)
+                                return err
+                        }
+                        log.Printf("DEBUG: Import successful")
+                }
 
-		// Combine ID and IdSuffix for the full invoice number
-		fullInvoiceId := file.Id
-		if file.IdSuffix != "" {
-			fullInvoiceId = file.Id + file.IdSuffix
-		}
+                // Combine ID and IdSuffix for the full invoice number
+                fullInvoiceId := file.Id
+                if file.IdSuffix != "" {
+                        fullInvoiceId = file.Id + file.IdSuffix
+                }
 
-		pdf := gopdf.GoPdf{}
-		pdf.Start(gopdf.Config{
-			PageSize: *gopdf.PageSizeA4,
-		})
-		pdf.SetMargins(40, 40, 40, 40)
-		pdf.AddPage()
-		err := pdf.AddTTFFontData("Inter", interFont)
-		if err != nil {
-			return err
-		}
+                pdf := gopdf.GoPdf{}
+                pdf.Start(gopdf.Config{
+                        PageSize: *gopdf.PageSizeA4,
+                })
+                pdf.SetMargins(40, 40, 40, 40)
+                pdf.AddPage()
+                err := pdf.AddTTFFontData("Inter", interFont)
+                if err != nil {
+                        return err
+                }
 
-		err = pdf.AddTTFFontData("Inter-Bold", interBoldFont)
-		if err != nil {
-			return err
-		}
+                err = pdf.AddTTFFontData("Inter-Bold", interBoldFont)
+                if err != nil {
+                        return err
+                }
 
-		writeLogo(&pdf, file.Logo, file.From)
-		writeTitle(&pdf, file.Title, fullInvoiceId, file.Date) // Use full invoice ID with suffix
-		writeBillTo(&pdf, file.To)
-		writeHeaderRow(&pdf)
-		subtotal := 0.0
-		for i := range file.Items {
-			q := 1
-			if len(file.Quantities) > i {
-				q = file.Quantities[i]
-			}
+                writeLogo(&pdf, file.Logo, file.From)
+                writeTitle(&pdf, file.Title, fullInvoiceId, file.Date) // Use full invoice ID with suffix
+                writeBillTo(&pdf, file.To)
+                writeHeaderRow(&pdf)
+                subtotal := 0.0
+                for i := range file.Items {
+                        q := 1
+                        if len(file.Quantities) > i {
+                                q = file.Quantities[i]
+                        }
 
-			r := 0.0
-			if len(file.Rates) > i {
-				r = file.Rates[i]
-			}
+                        r := 0.0
+                        if len(file.Rates) > i {
+                                r = file.Rates[i]
+                        }
 
-			writeRow(&pdf, file.Items[i], q, r)
-			subtotal += float64(q) * r
-		}
+                        writeRow(&pdf, file.Items[i], q, r)
+                        subtotal += float64(q) * r
+                }
 
-		// Write notes first before totals
-		if file.Note != "" {
-			writeNotes(&pdf, file.Note)
-		}
+                // Write notes first before totals
+                if file.Note != "" {
+                        writeNotes(&pdf, file.Note)
+                }
 
-		// Then write totals (will be positioned on the right side)
-		writeTotals(&pdf, subtotal, subtotal*file.Tax, subtotal*file.Discount)
+                // Then write totals (will be positioned on the right side)
+                writeTotals(&pdf, subtotal, subtotal*file.Tax, subtotal*file.Discount)
 
-		if file.Due != "" {
-			writeDueDate(&pdf, file.Due)
-		}
-		writeFooter(&pdf, fullInvoiceId) // Use full invoice ID with suffix in footer
-		output = strings.TrimSuffix(output, ".pdf") + ".pdf"
-		err = pdf.WritePdf(output)
-		if err != nil {
-			return err
-		}
+                if file.Due != "" {
+                        writeDueDate(&pdf, file.Due)
+                }
+                writeFooter(&pdf, fullInvoiceId) // Use full invoice ID with suffix in footer
+                output = strings.TrimSuffix(output, ".pdf") + ".pdf"
+                err = pdf.WritePdf(output)
+                if err != nil {
+                        return err
+                }
 
-		fmt.Printf("Generated %s\n", output)
+                fmt.Printf("Generated %s\n", output)
 
-		return nil
-	},
+                return nil
+        },
 }
 
 func main() {
-	rootCmd.AddCommand(generateCmd)
-	err := rootCmd.Execute()
-	if err != nil {
-		log.Fatal(err)
-	}
+        rootCmd.AddCommand(generateCmd)
+        err := rootCmd.Execute()
+        if err != nil {
+                log.Fatal(err)
+        }
 }
