@@ -242,7 +242,41 @@ var HTMLTemplates = map[string]string{
                     loadConfigData(this.value);
                 }
             });
+            
+            // Load available config files when page loads
+            loadConfigFiles();
         });
+        
+        // Function to load available config files for the dropdown
+        function loadConfigFiles() {
+            fetch('/api/config-files')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const select = document.getElementById('configFile');
+                        // Keep the first "None selected" option
+                        const defaultOption = select.options[0];
+                        // Clear existing options
+                        select.innerHTML = '';
+                        // Add back the default option
+                        select.appendChild(defaultOption);
+                        
+                        // Add each config file as an option
+                        data.files.forEach(file => {
+                            const fileName = file.split('/').pop();
+                            const option = document.createElement('option');
+                            option.value = fileName;
+                            option.textContent = fileName;
+                            select.appendChild(option);
+                        });
+                    } else {
+                        console.error('Error loading config files:', data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching config files:', error);
+                });
+        }
         
         // Function to load config data and pre-fill form
         function loadConfigData(filename) {
@@ -581,6 +615,11 @@ func runWebServer(webConfig WebConfig) error {
 
 	// Handle index route - serve the HTML template directly
 	router.GET("/", func(c *gin.Context) {
+		// Debug output to verify our changes
+		fmt.Println("\n--- Checking HTML template ---")
+		fmt.Println("loadConfigFiles function call present:", strings.Contains(HTMLTemplates["index"], "loadConfigFiles()"))
+		fmt.Println("loadConfigFiles function definition present:", strings.Contains(HTMLTemplates["index"], "function loadConfigFiles()"))
+		
 		c.Header("Content-Type", "text/html")
 		c.String(http.StatusOK, HTMLTemplates["index"])
 	})
