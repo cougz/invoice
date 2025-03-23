@@ -206,13 +206,23 @@ var generateCmd = &cobra.Command{
                         writeDueDate(&pdf, file.Due)
                 }
                 writeFooter(&pdf, fullInvoiceId) // Use full invoice ID with suffix in footer
-                output = strings.TrimSuffix(output, ".pdf") + ".pdf"
-                err = pdf.WritePdf(output)
+                
+                // Always use invoice ID for the filename, unless an explicit output is provided
+                outputFile := fullInvoiceId + ".pdf"
+                if output != "invoice.pdf" {
+                    // User specified a custom output filename
+                    outputFile = strings.TrimSuffix(output, ".pdf") + ".pdf"
+                }
+                
+                err = pdf.WritePdf(outputFile)
                 if err != nil {
                         return err
                 }
 
-                fmt.Printf("Generated %s\n", output)
+                fmt.Printf("Generated %s\n", outputFile)
+                
+                // Set the output variable to the actual file path used
+                output = outputFile
 
                 return nil
         },
@@ -223,6 +233,30 @@ var currencyCmd = &cobra.Command{
 	Use:   "currency",
 	Short: "Manage currency settings",
 	Long:  `Manage currency settings for invoice generation.`,
+}
+
+// Web server command
+var webCmd = &cobra.Command{
+	Use:   "web",
+	Short: "Start the web server",
+	Long:  `Start a web server for creating invoices through a browser.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		webConfigPath := cmd.Flag("config").Value.String()
+		webConfig := DefaultWebConfig()
+		
+		if webConfigPath != "" {
+			var err error
+			webConfig, err = loadWebConfig(webConfigPath)
+			if err != nil {
+				return fmt.Errorf("failed to load web config: %v", err)
+			}
+		}
+		
+		fmt.Printf("Starting invoice web server on port %d...\n", webConfig.Port)
+		fmt.Printf("To access the web interface, open http://localhost:%d in your browser\n", webConfig.Port)
+		
+		return runWebServer(webConfig)
+	},
 }
 
 var listCurrenciesCmd = &cobra.Command{
@@ -269,6 +303,11 @@ var exportConfigCmd = &cobra.Command{
 	},
 }
 
+func init() {
+	// Add web server flags
+	webCmd.Flags().String("config", "web_config.json", "Path to web server configuration file")
+}
+
 func main() {
 	// Add currency subcommands
 	currencyCmd.AddCommand(listCurrenciesCmd)
@@ -277,6 +316,7 @@ func main() {
 	// Add main commands
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(currencyCmd)
+	rootCmd.AddCommand(webCmd)
 	
 	err := rootCmd.Execute()
 	if err != nil {

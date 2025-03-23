@@ -1,0 +1,727 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+)
+
+// WebConfig holds the configuration for the web server
+type WebConfig struct {
+	Port           int    `json:"port"`
+	NextcloudURL   string `json:"nextcloudUrl"`
+	NextcloudShare string `json:"nextcloudShare"`
+	UploadScript   string `json:"uploadScript"`
+}
+
+// InvoiceRequest represents the form data from the web UI
+type InvoiceRequest struct {
+	From      string  `json:"from"`
+	To        string  `json:"to"`
+	Items     string  `json:"items"`
+	Quantities string `json:"quantities"`
+	Rates     string  `json:"rates"`
+	Tax       float64 `json:"tax"`
+	Discount  float64 `json:"discount"`
+	Currency  string  `json:"currency"`
+	Note      string  `json:"note"`
+	Id        string  `json:"id"`
+	IdSuffix  string  `json:"idSuffix"`
+	ConfigFile string `json:"configFile"`
+}
+
+// UploadResult represents the result of an upload operation
+type UploadResult struct {
+	Success bool   `json:"success"`
+	URL     string `json:"url"`
+	Message string `json:"message"`
+}
+
+// HTMLTemplates contains the HTML templates for the web UI
+var HTMLTemplates = map[string]string{
+	"index": `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+        .form-label {
+            font-weight: 500;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-success {
+            background-color: #28a745;
+            border-color: #28a745;
+        }
+        .preview-img {
+            max-width: 100%;
+            height: auto;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        #result-section {
+            display: none;
+        }
+        #error-message {
+            display: none;
+            color: #dc3545;
+        }
+        .tab-content {
+            padding-top: 1rem;
+        }
+        .badge {
+            font-weight: 500;
+        }
+        .items-container {
+            margin-bottom: 1rem;
+        }
+        .item-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .item-row button {
+            align-self: end;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Invoice Generator</h1>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <ul class="nav nav-tabs card-header-tabs" id="invoice-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic" type="button" role="tab" aria-controls="basic" aria-selected="true">Basic Info</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button" role="tab" aria-controls="config" aria-selected="false">Use Config File</button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content" id="invoice-content">
+                    <div class="tab-pane fade show active" id="basic" role="tabpanel" aria-labelledby="basic-tab">
+                        <form id="invoice-form">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="id" class="form-label">Invoice ID</label>
+                                        <input type="text" class="form-control" id="id" name="id" placeholder="Auto-generated if empty">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="idSuffix" class="form-label">ID Suffix (optional)</label>
+                                        <input type="text" class="form-control" id="idSuffix" name="idSuffix" placeholder="e.g., -R1">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="from" class="form-label">From (Company)</label>
+                                        <textarea class="form-control" id="from" name="from" rows="3" placeholder="Your Company Name&#10;Address&#10;Contact Information" required></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="to" class="form-label">To (Client)</label>
+                                        <textarea class="form-control" id="to" name="to" rows="3" placeholder="Client Company Name&#10;Address&#10;Contact Information" required></textarea>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="tax" class="form-label">Tax Rate</label>
+                                        <input type="number" class="form-control" id="tax" name="tax" step="0.01" value="0.19" required>
+                                        <small class="text-muted">Default: 19%</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="discount" class="form-label">Discount Rate</label>
+                                        <input type="number" class="form-control" id="discount" name="discount" step="0.01" value="0">
+                                        <small class="text-muted">Optional, e.g. 0.1 for 10%</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="currency" class="form-label">Currency</label>
+                                        <select class="form-control" id="currency" name="currency" required>
+                                            <option value="EUR">EUR (€)</option>
+                                            <option value="USD">USD ($)</option>
+                                            <option value="GBP">GBP (£)</option>
+                                            <option value="CHF">CHF</option>
+                                            <option value="JPY">JPY (¥)</option>
+                                            <option value="CAD">CAD (C$)</option>
+                                            <option value="AUD">AUD (A$)</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="note" class="form-label">Note</label>
+                                        <textarea class="form-control" id="note" name="note" rows="3" placeholder="Payment terms, additional information, etc."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <h5 class="mt-4 mb-3">Invoice Items</h5>
+                            <div id="items-container" class="items-container">
+                                <div class="item-row">
+                                    <div class="flex-grow-1">
+                                        <label for="item-0" class="form-label">Item</label>
+                                        <input type="text" class="form-control item-name" id="item-0" placeholder="Description" required>
+                                    </div>
+                                    <div style="width: 100px;">
+                                        <label for="quantity-0" class="form-label">Quantity</label>
+                                        <input type="number" class="form-control item-quantity" id="quantity-0" value="1" min="1" required>
+                                    </div>
+                                    <div style="width: 120px;">
+                                        <label for="rate-0" class="form-label">Rate</label>
+                                        <input type="number" class="form-control item-rate" id="rate-0" step="0.01" required>
+                                    </div>
+                                    <div style="width: 40px;">
+                                        <button type="button" class="btn btn-danger btn-sm remove-item" disabled>x</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button type="button" id="add-item" class="btn btn-secondary btn-sm mt-2">+ Add Item</button>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                                <button type="submit" class="btn btn-primary">Generate Invoice</button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="config" role="tabpanel" aria-labelledby="config-tab">
+                        <form id="config-form">
+                            <div class="mb-3">
+                                <label for="configFile" class="form-label">Config File</label>
+                                <select class="form-control" id="configFile" name="configFile" required>
+                                    <option value="">Select a configuration file...</option>
+                                    <!-- Config files will be populated via JavaScript -->
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="idConfig" class="form-label">Override Invoice ID (optional)</label>
+                                <input type="text" class="form-control" id="idConfig" name="idConfig" placeholder="Auto-generated if empty">
+                            </div>
+                            <div class="mb-3">
+                                <label for="idSuffixConfig" class="form-label">Override ID Suffix (optional)</label>
+                                <input type="text" class="form-control" id="idSuffixConfig" name="idSuffixConfig" placeholder="e.g., -R1">
+                            </div>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                                <button type="submit" class="btn btn-primary">Generate Invoice</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="result-section" class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Generated Invoice</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="ratio ratio-4x3 mb-3">
+                            <iframe id="pdf-preview" src="" frameborder="0"></iframe>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-grid gap-2">
+                            <p><strong>Filename:</strong> <span id="filename"></span></p>
+                            <a id="download-link" href="#" class="btn btn-primary mb-2">Download PDF</a>
+                            <button id="upload-btn" class="btn btn-success mb-2">Upload to Nextcloud</button>
+                            <div id="upload-result" class="mt-2">
+                                <div class="alert alert-success" id="upload-success" style="display:none;">
+                                    <p>Upload successful!</p>
+                                    <p>Share URL: <a id="share-url" href="#" target="_blank"></a></p>
+                                </div>
+                                <div class="alert alert-danger" id="upload-error" style="display:none;">
+                                    <p>Upload failed:</p>
+                                    <p id="error-message"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Get config files on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch('/api/config-files')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('configFile');
+                    data.files.forEach(file => {
+                        const option = document.createElement('option');
+                        option.value = file;
+                        option.textContent = file;
+                        select.appendChild(option);
+                    });
+                });
+        });
+
+        // Item management
+        let itemCount = 1;
+        
+        document.getElementById('add-item').addEventListener('click', function() {
+            const container = document.getElementById('items-container');
+            const newRow = document.createElement('div');
+            newRow.className = 'item-row';
+            newRow.innerHTML = '<div class="flex-grow-1"><label for="item-' + itemCount + '" class="form-label">Item</label><input type="text" class="form-control item-name" id="item-' + itemCount + '" placeholder="Description" required></div><div style="width: 100px;"><label for="quantity-' + itemCount + '" class="form-label">Quantity</label><input type="number" class="form-control item-quantity" id="quantity-' + itemCount + '" value="1" min="1" required></div><div style="width: 120px;"><label for="rate-' + itemCount + '" class="form-label">Rate</label><input type="number" class="form-control item-rate" id="rate-' + itemCount + '" step="0.01" required></div><div style="width: 40px;"><button type="button" class="btn btn-danger btn-sm remove-item">x</button></div>';
+            container.appendChild(newRow);
+            itemCount++;
+            
+            // Enable all remove buttons if more than one item exists
+            if (container.querySelectorAll('.item-row').length > 1) {
+                container.querySelectorAll('.remove-item').forEach(btn => {
+                    btn.disabled = false;
+                });
+            }
+        });
+        
+        // Event delegation for remove buttons
+        document.getElementById('items-container').addEventListener('click', function(e) {
+            if (e.target.classList.contains('remove-item')) {
+                e.target.closest('.item-row').remove();
+                
+                // Disable remove button if only one item remains
+                const container = document.getElementById('items-container');
+                if (container.querySelectorAll('.item-row').length <= 1) {
+                    container.querySelector('.remove-item').disabled = true;
+                }
+            }
+        });
+
+        // Basic invoice form submission
+        document.getElementById('invoice-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Collect items, quantities, and rates
+            const items = [];
+            const quantities = [];
+            const rates = [];
+            
+            document.querySelectorAll('.item-row').forEach(row => {
+                items.push(row.querySelector('.item-name').value);
+                quantities.push(row.querySelector('.item-quantity').value);
+                rates.push(row.querySelector('.item-rate').value);
+            });
+            
+            // Create form data
+            const formData = {
+                from: document.getElementById('from').value,
+                to: document.getElementById('to').value,
+                items: items.join('||'),
+                quantities: quantities.join('||'),
+                rates: rates.join('||'),
+                tax: parseFloat(document.getElementById('tax').value),
+                discount: parseFloat(document.getElementById('discount').value),
+                currency: document.getElementById('currency').value,
+                note: document.getElementById('note').value,
+                id: document.getElementById('id').value,
+                idSuffix: document.getElementById('idSuffix').value
+            };
+            
+            generateInvoice(formData);
+        });
+
+        // Config form submission
+        document.getElementById('config-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                configFile: document.getElementById('configFile').value,
+                id: document.getElementById('idConfig').value,
+                idSuffix: document.getElementById('idSuffixConfig').value
+            };
+            
+            generateInvoice(formData);
+        });
+
+        // Generate invoice function
+        function generateInvoice(formData) {
+            fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show result section
+                    document.getElementById('result-section').style.display = 'block';
+                    
+                    // Update preview
+                    const previewFrame = document.getElementById('pdf-preview');
+                    previewFrame.src = '/api/view/' + data.filename;
+                    
+                    // Update download link
+                    const downloadLink = document.getElementById('download-link');
+                    downloadLink.href = '/api/download/' + data.filename;
+                    downloadLink.download = data.filename;
+                    
+                    // Update filename display
+                    document.getElementById('filename').textContent = data.filename;
+                    
+                    // Reset upload result display
+                    document.getElementById('upload-success').style.display = 'none';
+                    document.getElementById('upload-error').style.display = 'none';
+                    
+                    // Scroll to results
+                    document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    alert('Error generating invoice: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
+
+        // Upload to Nextcloud
+        document.getElementById('upload-btn').addEventListener('click', function() {
+            const filename = document.getElementById('filename').textContent;
+            
+            fetch('/api/upload/' + filename, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('upload-success').style.display = 'block';
+                    document.getElementById('upload-error').style.display = 'none';
+                    document.getElementById('share-url').href = data.url;
+                    document.getElementById('share-url').textContent = data.url;
+                } else {
+                    document.getElementById('upload-success').style.display = 'none';
+                    document.getElementById('upload-error').style.display = 'block';
+                    document.getElementById('error-message').textContent = data.message;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('upload-success').style.display = 'none';
+                document.getElementById('upload-error').style.display = 'block';
+                document.getElementById('error-message').textContent = 'Network error. Please try again.';
+            });
+        });
+    </script>
+</body>
+</html>`,
+}
+
+// DefaultWebConfig returns the default web configuration
+func DefaultWebConfig() WebConfig {
+	return WebConfig{
+		Port:           8080,
+		NextcloudURL:   "https://cloud.example.com",
+		NextcloudShare: "/s/share-id",
+		UploadScript:   "/var/scripts/cloudsend.sh",
+	}
+}
+
+// loadWebConfig loads the web server configuration from a JSON file
+func loadWebConfig(configPath string) (WebConfig, error) {
+	config := DefaultWebConfig()
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return config, fmt.Errorf("unable to read web config: %v", err)
+	}
+
+	err = json.Unmarshal(data, &config)
+	if err != nil {
+		return config, fmt.Errorf("invalid JSON in web config: %v", err)
+	}
+
+	return config, nil
+}
+
+// runWebServer starts the web server
+func runWebServer(webConfig WebConfig) error {
+	router := gin.Default()
+
+	// Serve static files
+	router.Static("/static", "./web/static")
+
+	// API routes
+	api := router.Group("/api")
+	{
+		// Generate invoice
+		api.POST("/generate", func(c *gin.Context) {
+			var request InvoiceRequest
+			if err := c.ShouldBindJSON(&request); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid request data"})
+				return
+			}
+
+			// Process the request and generate the invoice
+			filename, err := generateInvoiceFromRequest(request)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false, 
+					"message": "Failed to generate invoice: " + err.Error(),
+				})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"success":  true,
+				"filename": filename,
+			})
+		})
+
+		// List available configuration files
+		api.GET("/config-files", func(c *gin.Context) {
+			files, err := findConfigFiles()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"success": true, "files": files})
+		})
+
+		// View generated PDF
+		api.GET("/view/:filename", func(c *gin.Context) {
+			filename := c.Param("filename")
+			c.File(filename)
+		})
+
+		// Download generated PDF
+		api.GET("/download/:filename", func(c *gin.Context) {
+			filename := c.Param("filename")
+			c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+			c.File(filename)
+		})
+
+		// Upload to Nextcloud
+		api.POST("/upload/:filename", func(c *gin.Context) {
+			filename := c.Param("filename")
+			result, err := uploadToNextcloud(filename, webConfig.UploadScript, webConfig.NextcloudURL, webConfig.NextcloudShare)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"message": "Upload failed: " + err.Error(),
+				})
+				return
+			}
+
+			c.JSON(http.StatusOK, result)
+		})
+	}
+
+	// Handle index route - serve the HTML template directly
+	router.GET("/", func(c *gin.Context) {
+		c.Header("Content-Type", "text/html")
+		c.String(http.StatusOK, HTMLTemplates["index"])
+	})
+
+	// Start the server
+	return router.Run(fmt.Sprintf(":%d", webConfig.Port))
+}
+
+// findConfigFiles returns a list of JSON and YAML config files
+func findConfigFiles() ([]string, error) {
+	var files []string
+
+	// Find JSON and YAML files in the current directory
+	jsonFiles, err := filepath.Glob("*.json")
+	if err != nil {
+		return nil, err
+	}
+	ymlFiles, err := filepath.Glob("*.yml")
+	if err != nil {
+		return nil, err
+	}
+	yamlFiles, err := filepath.Glob("*.yaml")
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge all files
+	files = append(files, jsonFiles...)
+	files = append(files, ymlFiles...)
+	files = append(files, yamlFiles...)
+
+	// Filter out non-invoice config files
+	var configFiles []string
+	for _, file := range files {
+		// Skip known non-invoice config files
+		if file == "currency_config.json" || file == "web_config.json" {
+			continue
+		}
+		configFiles = append(configFiles, file)
+	}
+
+	return configFiles, nil
+}
+
+// generateInvoiceFromRequest processes a web request and generates an invoice
+func generateInvoiceFromRequest(request InvoiceRequest) (string, error) {
+	var args []string
+	var err error
+
+	// Process based on whether we're using a config file or form data
+	if request.ConfigFile != "" {
+		// Using a config file
+		args = append(args, "generate", "--import", request.ConfigFile)
+		
+		// Add optional ID overrides
+		if request.Id != "" {
+			args = append(args, "--id", request.Id)
+		}
+		if request.IdSuffix != "" {
+			args = append(args, "--id-suffix", request.IdSuffix)
+		}
+	} else {
+		// Using form data directly
+		args = append(args, "generate")
+		
+		// Add basic invoice info
+		if request.From != "" {
+			args = append(args, "--from", request.From)
+		}
+		if request.To != "" {
+			args = append(args, "--to", request.To)
+		}
+
+		// Process items, quantities, and rates
+		if request.Items != "" {
+			items := strings.Split(request.Items, "||")
+			quantities := strings.Split(request.Quantities, "||")
+			rates := strings.Split(request.Rates, "||")
+
+			for i, item := range items {
+				args = append(args, "--item", item)
+				if i < len(quantities) {
+					args = append(args, "--quantity", quantities[i])
+				}
+				if i < len(rates) {
+					args = append(args, "--rate", rates[i])
+				}
+			}
+		}
+
+		// Add additional fields
+		if request.Tax != 0 {
+			args = append(args, "--tax", fmt.Sprintf("%f", request.Tax))
+		}
+		if request.Discount != 0 {
+			args = append(args, "--discount", fmt.Sprintf("%f", request.Discount))
+		}
+		if request.Currency != "" {
+			args = append(args, "--currency", request.Currency)
+		}
+		if request.Note != "" {
+			args = append(args, "--note", request.Note)
+		}
+		if request.Id != "" {
+			args = append(args, "--id", request.Id)
+		}
+		if request.IdSuffix != "" {
+			args = append(args, "--id-suffix", request.IdSuffix)
+		}
+	}
+
+	// Create a temporary file to capture the output
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command("./invoice", args...)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// Run the command
+	err = cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("command failed: %v\nStderr: %s", err, stderr.String())
+	}
+
+	// Parse the output to find the generated filename
+	// The output should be like "Generated filename.pdf"
+	output := stdout.String()
+	if strings.Contains(output, "Generated") {
+		parts := strings.Split(output, "Generated ")
+		if len(parts) > 1 {
+			filename := strings.TrimSpace(parts[1])
+			return filename, nil
+		}
+	}
+
+	return "", fmt.Errorf("failed to determine output filename from: %s", output)
+}
+
+// uploadToNextcloud uploads a file to Nextcloud using the provided script
+func uploadToNextcloud(filename, scriptPath, nextcloudURL, shareID string) (UploadResult, error) {
+	result := UploadResult{
+		Success: false,
+	}
+
+	// Check if the upload script exists
+	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+		return result, fmt.Errorf("upload script not found: %s", scriptPath)
+	}
+
+	// Check if the file exists
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return result, fmt.Errorf("file not found: %s", filename)
+	}
+
+	// Construct the share URL
+	shareURL := nextcloudURL + shareID
+
+	// Run the upload script
+	cmd := exec.Command(scriptPath, filename, shareURL)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return result, fmt.Errorf("upload failed: %v\nStderr: %s", err, stderr.String())
+	}
+
+	// Parse the output to find the share URL
+	output := stdout.String()
+	// Example output format: "File uploaded successfully: https://cloud.example.com/s/share-id"
+	if strings.Contains(output, "http") {
+		// Try to extract the URL from the output
+		for _, line := range strings.Split(output, "\n") {
+			if strings.Contains(line, "http") {
+				urlStart := strings.Index(line, "http")
+				if urlStart >= 0 {
+					url := line[urlStart:]
+					result.Success = true
+					result.URL = strings.TrimSpace(url)
+					result.Message = "File uploaded successfully"
+					return result, nil
+				}
+			}
+		}
+	}
+
+	// If we couldn't extract a URL but the command succeeded, assume success with the expected URL
+	result.Success = true
+	result.URL = shareURL
+	result.Message = "File uploaded successfully"
+	return result, nil
+}

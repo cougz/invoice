@@ -1,19 +1,55 @@
-# German Localization Support
+# Invoice Generator with German Localization and Web Interface
 
-This version of the invoice generator now includes German localization for businesses operating in Germany or German-speaking regions.
+This invoice generator application includes German localization for businesses operating in Germany or German-speaking regions, and now features a web-based interface for easier invoice generation.
 
-## German Features
+## Features
 
-- All labels and text in German
-- German date format (DD.MM.YYYY)
-- Default German VAT rate (19%)
-- Euro (€) as default currency
-- German company information in footer
+- Command-line and web-based interfaces
+- German localization (labels, date format, VAT)
+- Euro (€) as default currency with support for other currencies
+- Configurable invoice details via JSON/YAML files
+- PDF generation with proper layout
+- Dynamic positioning to handle various content lengths
 - Support for extended invoice numbers with suffix
+- Automatic file naming based on invoice ID
+- Nextcloud integration for file sharing
 
-## Usage Examples
+## Web Interface
 
-Generate a basic German invoice:
+The invoice generator now includes a web server that provides a browser-based interface for creating invoices.
+
+### Starting the Web Server
+
+```bash
+invoice web [--config web_config.json]
+```
+
+The web server will start on port 8080 by default (configurable). Access the interface by opening `http://localhost:8080` in your browser.
+
+### Web Configuration
+
+Configure the web server by creating a `web_config.json` file:
+
+```json
+{
+  "port": 8080,
+  "nextcloudUrl": "https://your-nextcloud-server.com",
+  "nextcloudShare": "/s/your-share-id",
+  "uploadScript": "./cloudsend.sh"
+}
+```
+
+### Nextcloud Integration
+
+The web interface supports uploading generated invoices directly to a Nextcloud share. To use this feature:
+
+1. Configure your Nextcloud settings in `web_config.json`
+2. Make sure the `cloudsend.sh` script is executable (`chmod +x cloudsend.sh`)
+3. After generating an invoice, click "Upload to Nextcloud" to share it
+
+## Command-Line Usage
+
+### Basic German Invoice
 
 ```bash
 invoice generate --from "Meine Firma GmbH" \
@@ -23,7 +59,7 @@ invoice generate --from "Meine Firma GmbH" \
     --note "Zahlbar innerhalb von 14 Tagen ohne Abzug."
 ```
 
-Using invoice number suffix:
+### Using Invoice Number Suffix
 
 ```bash
 invoice generate --id "2023001" --id-suffix "-R1" \
@@ -33,7 +69,7 @@ invoice generate --id "2023001" --id-suffix "-R1" \
     --tax 0.19
 ```
 
-## Configuration File Example
+### Using Configuration Files
 
 Save repeated information with JSON / YAML:
 
@@ -43,7 +79,21 @@ Save repeated information with JSON / YAML:
     "from": "Meine Firma GmbH\nMusterstraße 123\n10115 Berlin",
     "tax": 0.19,
     "currency": "EUR",
-    "note": "Bitte überweisen Sie den Betrag innerhalb von 14 Tagen."
+    "note": "Bitte überweisen Sie den Betrag innerhalb von 14 Tagen.",
+    "footer": {
+      "companyName": "Meine Firma GmbH",
+      "registrationInfo": "Amtsgericht Berlin, HRB 123456",
+      "vatId": "USt-IdNr. DE123456789",
+      "address": "Musterstraße 123",
+      "city": "Berlin",
+      "zip": "10115",
+      "phone": "+49 30 1234567",
+      "email": "info@meinefirma.de",
+      "website": "www.meinefirma.de",
+      "bankName": "Sparkasse Berlin",
+      "bankIban": "DE12 3456 7890 1234 5678 90",
+      "bankBic": "BELADEBEXXX"
+    }
 }
 ```
 
@@ -55,20 +105,9 @@ invoice generate --import path/to/data.json \
     --item "Support-Paket" --quantity 1 --rate 299
 ```
 
-## Customization
+## Currency Management
 
-You can adjust the footer information by modifying the `writeFooter` function in `pdf.go` to include your specific:
-
-- Company name
-- Registration court and number
-- VAT ID number
-- Address
-- Contact information
-- Bank details
-
-## Currency Configuration
-
-The invoice generator now supports custom currency configurations through JSON files. You can:
+The invoice generator now supports custom currency configurations through JSON files.
 
 ### List Available Currencies
 
