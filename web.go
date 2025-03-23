@@ -48,70 +48,29 @@ type UploadResult struct {
 // HTMLTemplates contains the HTML templates for the web UI
 var HTMLTemplates = map[string]string{
 	"index": `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice Generator</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body {
-            padding-top: 2rem;
-            padding-bottom: 2rem;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        }
-        .card {
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1.5rem;
-        }
-        .form-label {
-            font-weight: 500;
-        }
-        .btn-primary {
-            background-color: #007bff;
-            border-color: #007bff;
-        }
-        .btn-success {
-            background-color: #28a745;
-            border-color: #28a745;
-        }
-        .preview-img {
-            max-width: 100%;
-            height: auto;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        #result-section {
-            display: none;
-        }
-        #error-message {
-            display: none;
-            color: #dc3545;
-        }
-        .badge {
-            font-weight: 500;
-        }
-        .items-container {
-            margin-bottom: 1rem;
-        }
-        .item-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .item-row button {
-            align-self: end;
-        }
-        .config-selection {
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-    </style>
+    <link href="/static/css/style.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 </head>
 <body>
     <div class="container">
         <h1 class="text-center mb-4">Invoice Generator</h1>
+        
+        <div class="theme-switch">
+            <label for="theme-toggle">Toggle Dark Mode</label>
+            <label class="switch">
+                <input type="checkbox" id="theme-toggle">
+                <span class="slider">
+                    <i class="bi bi-sun-fill sun-icon"></i>
+                    <i class="bi bi-moon-fill moon-icon"></i>
+                </span>
+            </label>
+        </div>
         
         <div class="card mb-4">
             <div class="card-header">
@@ -120,21 +79,12 @@ var HTMLTemplates = map[string]string{
             <div class="card-body">
                 <form id="invoice-form">
                     <div class="config-selection">
-                        <div class="row align-items-center">
-                            <div class="col-md-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="useConfig" name="useConfig">
-                                    <label class="form-check-label" for="useConfig">
-                                        Pre-fill from config file
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-8">
-                                <select class="form-control" id="configFile" name="configFile" disabled>
-                                    <option value="">Select a configuration file...</option>
-                                    <!-- Config files will be populated via JavaScript -->
-                                </select>
-                            </div>
+                        <div class="mb-3">
+                            <label for="configFile" class="form-label">Pre-fill from config file</label>
+                            <select class="form-select" id="configFile" name="configFile">
+                                <option value="">None selected</option>
+                                <!-- Config files will be populated via JavaScript -->
+                            </select>
                         </div>
                     </div>
                             
@@ -252,8 +202,31 @@ var HTMLTemplates = map[string]string{
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Get config files on page load
+        // Dark mode toggle functionality
         document.addEventListener('DOMContentLoaded', function() {
+            const toggleSwitch = document.getElementById('theme-toggle');
+            
+            // Check for saved theme preference
+            const currentTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            
+            // Set the toggle position based on saved preference
+            if (currentTheme === 'dark') {
+                toggleSwitch.checked = true;
+            }
+            
+            // Theme switch event listener
+            toggleSwitch.addEventListener('change', function() {
+                if (this.checked) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+            
+            // Get config files on page load
             fetch('/api/config-files')
                 .then(response => response.json())
                 .then(data => {
@@ -266,20 +239,9 @@ var HTMLTemplates = map[string]string{
                     });
                 });
                 
-            // Add event listener for the useConfig checkbox
-            document.getElementById('useConfig').addEventListener('change', function() {
-                const configSelect = document.getElementById('configFile');
-                configSelect.disabled = !this.checked;
-                
-                // If config is enabled and there's a file selected, fetch its data to pre-fill form
-                if (this.checked && configSelect.value) {
-                    loadConfigData(configSelect.value);
-                }
-            });
-            
             // Add event listener for config file selection
             document.getElementById('configFile').addEventListener('change', function() {
-                if (document.getElementById('useConfig').checked && this.value) {
+                if (this.value) {
                     loadConfigData(this.value);
                 }
             });
@@ -427,8 +389,8 @@ var HTMLTemplates = map[string]string{
                 note: document.getElementById('note').value,
                 id: document.getElementById('id').value,
                 idSuffix: document.getElementById('idSuffix').value,
-                useConfig: document.getElementById('useConfig').checked,
-                configFile: document.getElementById('useConfig').checked ? document.getElementById('configFile').value : ''
+                useConfig: document.getElementById('configFile').value !== "",
+                configFile: document.getElementById('configFile').value
             };
             
             generateInvoice(formData);
