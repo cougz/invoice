@@ -6,6 +6,7 @@ import (
         "fmt"
         "log"
         "strings"
+        "sort"
         "time"
 
         "github.com/signintech/gopdf"
@@ -217,10 +218,68 @@ var generateCmd = &cobra.Command{
         },
 }
 
+// Currency command definitions
+var currencyCmd = &cobra.Command{
+	Use:   "currency",
+	Short: "Manage currency settings",
+	Long:  `Manage currency settings for invoice generation.`,
+}
+
+var listCurrenciesCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all available currencies and their symbols",
+	Long:  `List all available currencies and their symbols.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Available currencies and their symbols:")
+		fmt.Println("---------------------------------------")
+		
+		// Get all currency codes sorted alphabetically
+		var codes []string
+		for code := range currencySymbols {
+			codes = append(codes, code)
+		}
+		sort.Strings(codes)
+		
+		// Print each currency code and symbol
+		for _, code := range codes {
+			symbol := currencySymbols[code]
+			fmt.Printf("%-5s : %s\n", code, symbol)
+		}
+	},
+}
+
+var exportConfigCmd = &cobra.Command{
+	Use:   "export [path]",
+	Short: "Export the current currency configuration",
+	Long:  `Export the current currency configuration to a JSON file.`,
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		configPath := "currency_config.json"
+		if len(args) > 0 {
+			configPath = args[0]
+		}
+		
+		err := exportCurrencyConfig(configPath)
+		if err != nil {
+			return err
+		}
+		
+		fmt.Printf("Currency configuration exported to %s\n", configPath)
+		return nil
+	},
+}
+
 func main() {
-        rootCmd.AddCommand(generateCmd)
-        err := rootCmd.Execute()
-        if err != nil {
-                log.Fatal(err)
-        }
+	// Add currency subcommands
+	currencyCmd.AddCommand(listCurrenciesCmd)
+	currencyCmd.AddCommand(exportConfigCmd)
+	
+	// Add main commands
+	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(currencyCmd)
+	
+	err := rootCmd.Execute()
+	if err != nil {
+		log.Fatal(err)
+	}
 }

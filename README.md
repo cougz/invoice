@@ -65,3 +65,48 @@ You can adjust the footer information by modifying the `writeFooter` function in
 - Address
 - Contact information
 - Bank details
+
+## Currency Configuration
+
+The invoice generator now supports custom currency configurations through JSON files. You can:
+
+### List Available Currencies
+
+View all available currencies and their symbols:
+
+```bash
+invoice currency list
+```
+
+### Export Currency Configuration
+
+Export the current currency configuration to a JSON file:
+
+```bash
+invoice currency export my_currencies.json
+```
+
+### Custom Currency Configuration
+
+Create or modify a currency configuration file (`currency_config.json` or `config/currency.json`):
+
+```json
+{
+  "symbols": {
+    "USD": "$",
+    "EUR": "€",
+    "GBP": "£",
+    "CHF": "CHF",
+    "CAD": "C$",
+    "AUD": "A$",
+    "CUSTOM": "¤"
+  }
+}
+```
+
+The application will automatically load currency symbols from any of these locations:
+- `currency_config.json` in the current directory
+- `config/currency.json` in the current directory
+- `~/.config/invoice/currency.json` in the user's home directory
+
+If a currency is not found in the configuration, the application will use the currency code itself as a fallback.
