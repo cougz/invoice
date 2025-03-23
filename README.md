@@ -8,7 +8,7 @@ This invoice generator application includes German localization for businesses o
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/maaslalani/invoice.git
+   git clone https://github.com/cougz/invoice.git
    cd invoice
    ```
 
@@ -63,7 +63,7 @@ Configure the web server by creating a `web_config.json` file:
 
 ### Nextcloud Integration
 
-The web interface supports uploading generated invoices directly to a Nextcloud share. To use this feature:
+The web interface supports uploading and viewing generated invoices directly to a Nextcloud share. To use this feature:
 
 1. Configure your Nextcloud settings in `web_config.json`
 2. Make sure the `cloudsend.sh` script is executable (`chmod +x cloudsend.sh`)
