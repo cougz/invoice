@@ -141,16 +141,11 @@ var generateCmd = &cobra.Command{
         Short: "Generate an invoice",
         Long:  `Generate an invoice`,
         RunE: func(cmd *cobra.Command, args []string) error {
-                log.Printf("DEBUG: Starting invoice generation")
-
                 if importPath != "" {
-                        log.Printf("DEBUG: Importing from %s", importPath)
                         err := importData(importPath, &file, cmd.Flags())
                         if err != nil {
-                                log.Printf("ERROR: Import failed: %v", err)
-                                return err
+                                return fmt.Errorf("import failed: %v", err)
                         }
-                        log.Printf("DEBUG: Import successful")
                 }
 
                 // Combine ID and IdSuffix for the full invoice number
@@ -180,7 +175,9 @@ var generateCmd = &cobra.Command{
                 writeBillTo(&pdf, file.To)
                 writeHeaderRow(&pdf)
                 subtotal := 0.0
-                for i := range file.Items {
+                // Check if we have any items
+                if len(file.Items) > 0 {
+                    for i := range file.Items {
                         q := 1
                         if len(file.Quantities) > i {
                                 q = file.Quantities[i]
@@ -193,6 +190,7 @@ var generateCmd = &cobra.Command{
 
                         writeRow(&pdf, file.Items[i], q, r)
                         subtotal += float64(q) * r
+                    }
                 }
 
                 // Write notes first before totals

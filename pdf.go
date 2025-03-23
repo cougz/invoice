@@ -335,14 +335,14 @@ func writeRow(pdf *gopdf.GoPdf, item string, quantity int, rate float64) {
 }
 
 func writeTotals(pdf *gopdf.GoPdf, subtotal float64, tax float64, discount float64) {
-        // Get the current Y position - use dynamic positioning instead of fixed
+        // Get the current Y position - use dynamic positioning instead of fixed position
         currentY := pdf.GetY() + 20
 
         // Set X position for the totals section (using absolute positioning)
         pdf.SetX(350) // Fixed position for labels
         pdf.SetY(currentY)
 
-        // Get currency symbol safely
+        // Get currency symbol safely using the dedicated function from currency.go
         currencySymbol := getCurrencySymbol(file.Currency)
 
         writeTotal(pdf, subtotalLabel, subtotal, currencySymbol)
@@ -371,27 +371,23 @@ func writeTotal(pdf *gopdf.GoPdf, label string, total float64, currencySymbol st
         pdf.Br(24)
 }
 
-// Helper function to safely get currency symbol
-func getCurrencySymbol(currency string) string {
-        symbol, exists := currencySymbols[currency]
-        if !exists {
-                // If the currency doesn't exist in our map, return the currency code as fallback
-                return currency + " "
-        }
-        return symbol
-}
 
 func getImageDimension(imagePath string) (int, int) {
+        // If image path is empty, return zero dimensions
+        if imagePath == "" {
+                return 0, 0
+        }
+        
         file, err := os.Open(imagePath)
         if err != nil {
-                fmt.Fprintf(os.Stderr, "%v\n", err)
+                fmt.Fprintf(os.Stderr, "Error opening image %s: %v\n", imagePath, err)
                 return 0, 0
         }
         defer file.Close()
 
         image, _, err := image.DecodeConfig(file)
         if err != nil {
-                fmt.Fprintf(os.Stderr, "%s: %v\n", imagePath, err)
+                fmt.Fprintf(os.Stderr, "Error decoding image %s: %v\n", imagePath, err)
                 return 0, 0
         }
         return image.Width, image.Height
