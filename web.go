@@ -800,60 +800,44 @@ func generateInvoiceFromRequest(request InvoiceRequest) (string, error) {
 
 // uploadToNextcloud uploads a file to Nextcloud using the provided script
 func uploadToNextcloud(filename, scriptPath, nextcloudURL, shareID string) (UploadResult, error) {
-	result := UploadResult{
-		Success: false,
-	}
+        result := UploadResult{
+                Success: false,
+        }
 
-	// Check if the upload script exists
-	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		return result, fmt.Errorf("upload script not found: %s", scriptPath)
-	}
+        // Check if the upload script exists
+        if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+                return result, fmt.Errorf("upload script not found: %s", scriptPath)
+        }
 
-	// Check if the file exists
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		return result, fmt.Errorf("file not found: %s", filename)
-	}
+        // Check if the file exists
+        if _, err := os.Stat(filename); os.IsNotExist(err) {
+                return result, fmt.Errorf("file not found: %s", filename)
+        }
 
-	// Construct the share URL
-	shareURL := nextcloudURL + shareID
+        // Construct the share URL
+        shareURL := nextcloudURL + shareID
 
-	// Run the upload script
-	cmd := exec.Command(scriptPath, filename, shareURL)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+        // Run the upload script
+        cmd := exec.Command(scriptPath, filename, shareURL)
+        var stdout, stderr bytes.Buffer
+        cmd.Stdout = &stdout
+        cmd.Stderr = &stderr
 
-	err := cmd.Run()
-	if err != nil {
-		return result, fmt.Errorf("upload failed: %v\nStderr: %s", err, stderr.String())
-	}
+        err := cmd.Run()
+        if err != nil {
+                return result, fmt.Errorf("upload failed: %v\nStderr: %s", err, stderr.String())
+        }
 
-	// Parse the output to find the share URL
-	output := stdout.String()
-	// Example output format: "File uploaded successfully: https://cloud.example.com/s/share-id"
-	if strings.Contains(output, "http") {
-		// Try to extract the URL from the output
-		for _, line := range strings.Split(output, "\n") {
-			if strings.Contains(line, "http") {
-				urlStart := strings.Index(line, "http")
-				if urlStart >= 0 {
-					url := line[urlStart:]
-					result.Success = true
-					result.URL = strings.TrimSpace(url)
-					result.Message = "File uploaded successfully"
-					return result, nil
-				}
-			}
-		}
-	}
-
-	// If we couldn't extract a URL but the command succeeded, assume success with the expected URL
-	result.Success = true
-	result.URL = shareURL
-	result.Message = "File uploaded successfully"
-	return result, nil
+        // Format the correct Nextcloud share URL
+        // This creates a URL like: https://cloud.seiffert.me/index.php/s/CAr4Gfs9NFd9RqG?path=&files=filename.pdf
+        formattedURL := fmt.Sprintf("%s?path=&files=%s", shareURL, filename)
+        
+        result.Success = true
+        result.URL = formattedURL
+        result.Message = "File uploaded successfully"
+        
+        return result, nil
 }
-
 // getConfigData loads and returns the data from a config file
 func getConfigData(filename string) (map[string]interface{}, error) {
 	// Read the file
