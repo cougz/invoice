@@ -1,5 +1,7 @@
 *.pdf
 *.json
+!web_config.json
+!config/currency.json
 *.yaml
 *.yml
 *.sh

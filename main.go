@@ -5,6 +5,7 @@ import (
         "flag"
         "fmt"
         "log"
+        "os"
         "strings"
         "sort"
         "time"
@@ -14,9 +15,11 @@ import (
         "github.com/spf13/viper"
 )
 
-// Removed embed directives as the Inter font directory was deleted
-var interFont []byte
-var interBoldFont []byte
+// Font paths for Inter fonts
+const (
+    InterRegularFont = "Inter/Inter Variable/Inter.ttf"
+    InterBoldFont    = "Inter/Inter Hinted for Windows/Desktop/Inter-Bold.ttf"
+)
 
 type Footer struct {
         CompanyName      string `json:"companyName" yaml:"companyName"`
@@ -159,16 +162,34 @@ var generateCmd = &cobra.Command{
                 })
                 pdf.SetMargins(40, 40, 40, 40)
                 pdf.AddPage()
-                // Try to use included fonts, but since they're not available, show a simple message
-                fmt.Println("Error: The Inter fonts are missing. Please download and restore the Inter font files.")
-                fmt.Println("You can download them from: https://github.com/rsms/inter")
-                fmt.Println("Directories needed:")
-                fmt.Println("- Inter/Inter Variable/Inter.ttf")
-                fmt.Println("- Inter/Inter Hinted for Windows/Desktop/Inter-Bold.ttf")
+                // Check if font files exist before attempting to load them
+                if _, err := os.Stat(InterRegularFont); os.IsNotExist(err) {
+                        return fmt.Errorf("Error: The Inter fonts are missing. Please download and restore the Inter font files.\n"+
+                                "You can download them from: https://github.com/rsms/inter\n"+
+                                "Directories needed:\n"+
+                                "- %s\n"+
+                                "- %s", InterRegularFont, InterBoldFont)
+                }
                 
-                var err error
-                err = fmt.Errorf("missing required font files")
-                return err
+                if _, err := os.Stat(InterBoldFont); os.IsNotExist(err) {
+                        return fmt.Errorf("Error: The Inter fonts are missing. Please download and restore the Inter font files.\n"+
+                                "You can download them from: https://github.com/rsms/inter\n"+
+                                "Directories needed:\n"+
+                                "- %s\n"+
+                                "- %s", InterRegularFont, InterBoldFont)
+                }
+                
+                // Load the Inter font from file
+                err := pdf.AddTTFFont("Inter", InterRegularFont)
+                if err != nil {
+                        return fmt.Errorf("failed to load Inter font: %v", err)
+                }
+                
+                // Load the Inter-Bold font from file
+                err = pdf.AddTTFFont("Inter-Bold", InterBoldFont)
+                if err != nil {
+                        return fmt.Errorf("failed to load Inter-Bold font: %v", err)
+                }
 
                 writeLogo(&pdf, file.Logo, file.From)
                 writeTitle(&pdf, file.Title, fullInvoiceId, file.Date) // Use full invoice ID with suffix
