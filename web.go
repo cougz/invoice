@@ -53,25 +53,26 @@ var HTMLTemplates = map[string]string{
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice Generator</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/css/style.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 </head>
 <body>
     <div class="container">
         <h1 class="text-center mb-4">Invoice Generator</h1>
         
-        <div class="theme-switch">
-            <label for="theme-toggle">Toggle Dark Mode</label>
-            <label class="switch">
-                <input type="checkbox" id="theme-toggle">
-                <span class="slider">
-                    <i class="bi bi-sun-fill sun-icon"></i>
-                    <i class="bi bi-moon-fill moon-icon"></i>
-                </span>
-            </label>
-        </div>
-        
+	<div class="theme-switch">
+	    <label for="theme-toggle">Toggle Dark Mode</label>
+	    <label class="switch">
+	        <input type="checkbox" id="theme-toggle">
+	        <span class="slider">
+	            <div class="star star_1"></div>
+	            <div class="star star_2"></div>
+	            <div class="star star_3"></div>
+	            <svg class="cloud" viewBox="0 0 100 100">
+	                <path d="M82.3,78.2H33.7c-10.6,0-19.3-8.6-19.3-19.3c0-9.3,6.6-17.1,15.4-19c0-0.5-0.1-1-0.1-1.5c0-15.3,12.4-27.7,27.7-27.7c12.2,0,22.8,8,26.4,19.5c8.9,0.8,15.8,8.3,15.8,17.4C99.6,67.8,92,78.2,82.3,78.2z"/>
+	            </svg>
+	        </span>
+	    </label>
+	</div>        
         <div class="card mb-4">
             <div class="card-header">
                 <h5 class="mb-0">Invoice Details</h5>
