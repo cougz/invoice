@@ -101,6 +101,7 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--text-color);
 }
 
+/* From Uiverse.io by JustCode14 */ 
 /* Theme Switch */
 /* The switch - the box around the slider */
 .switch {
@@ -113,14 +114,12 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   margin-left: 10px;
 }
-
 /* Hide default HTML checkbox */
 .switch input {
   opacity: 0;
   width: 0;
   height: 0;
 }
-
 /* The slider */
 .slider {
   position: absolute;
@@ -134,7 +133,6 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 30px;
   overflow: hidden;
 }
-
 .slider:before {
   position: absolute;
   content: "";
@@ -147,16 +145,13 @@ h1, h2, h3, h4, h5, h6 {
   transition-timing-function: cubic-bezier(0.81, -0.04, 0.38, 1.5);
   box-shadow: inset 8px -4px 0px 0px #fff;
 }
-
 .switch input:checked + .slider {
   background-color: #00a6ff;
 }
-
 .switch input:checked + .slider:before {
   transform: translateX(1.8em);
   box-shadow: inset 15px -4px 0px 15px #ffcf48;
 }
-
 .star {
   background-color: #fff;
   border-radius: 50%;
@@ -165,26 +160,21 @@ h1, h2, h3, h4, h5, h6 {
   transition: all 0.4s;
   height: 5px;
 }
-
 .star_1 {
   left: 2.5em;
   top: 0.5em;
 }
-
 .star_2 {
   left: 2.2em;
   top: 1.2em;
 }
-
 .star_3 {
   left: 3em;
   top: 0.9em;
 }
-
 .switch input:checked ~ .slider .star {
-  opacity: 1;
+  opacity: 0;
 }
-
 .cloud {
   width: 3.5em;
   position: absolute;
@@ -193,9 +183,8 @@ h1, h2, h3, h4, h5, h6 {
   opacity: 0;
   transition: all 0.4s;
 }
-
 .switch input:checked ~ .slider .cloud {
-  opacity: 0;
+  opacity: 1;
 }
 
 /* Result section styling */
