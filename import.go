@@ -49,21 +49,18 @@ func importData(path string, structure *Invoice, flags *pflag.FlagSet) error {
                 // Debug what was parsed
                 log.Printf("DEBUG: JSON parsed company name: %s", tempStructure.Footer.CompanyName)
 
-                // Copy the temp structure to the actual one
-                *structure = tempStructure
-
         } else if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
                 log.Printf("DEBUG: Processing as YAML file")
                 err = yaml.Unmarshal(fileText, &tempStructure)
                 if err != nil {
                         return fmt.Errorf("yaml parsing error: %v", err)
                 }
-
-                // Copy the temp structure to the actual one
-                *structure = tempStructure
         } else {
                 return fmt.Errorf("unsupported file type")
         }
+
+        // Copy the temp structure to the actual one
+        *structure = tempStructure
 
         // Process command line flags (these override file values)
         var byteBuffer [][]byte
@@ -93,24 +90,6 @@ func importData(path string, structure *Invoice, flags *pflag.FlagSet) error {
         }
 
         log.Printf("DEBUG: Final footer company name: %s", structure.Footer.CompanyName)
-
-        return nil
-}
-
-func importJson(text []byte, structure *Invoice) error {
-        err := json.Unmarshal(text, structure)
-        if err != nil {
-                return fmt.Errorf("json parsing error: %v", err)
-        }
-
-        return nil
-}
-
-func importYaml(text []byte, structure *Invoice) error {
-        err := yaml.Unmarshal(text, structure)
-        if err != nil {
-                return fmt.Errorf("yaml parsing error: %v", err)
-        }
 
         return nil
 }

@@ -236,12 +236,8 @@ func writeFooter(pdf *gopdf.GoPdf, id string) {
     _ = pdf.SetFont("Inter", "", 8)
     pdf.SetTextColor(75, 75, 75)
 
-    // Get the footer values, but use defaults if not provided
+    // Get the footer values from the invoice
     footer := file.Footer
-
-    // For debugging, print the values to console
-    fmt.Printf("DEBUG: Footer Company: %s\n", footer.CompanyName)
-    fmt.Printf("DEBUG: Footer Registration: %s\n", footer.RegistrationInfo)
 
     // Column 1 - Left
     startY := pdf.GetY()
@@ -326,34 +322,41 @@ func writeRow(pdf *gopdf.GoPdf, item string, quantity int, rate float64) {
                 _ = pdf.Cell(nil, item)
         }
 
+        // Get currency symbol safely using getCurrencySymbol function
+        currencySymbol := getCurrencySymbol(file.Currency)
+
         pdf.SetX(quantityColumnOffset)
         _ = pdf.Cell(nil, strconv.Itoa(quantity))
         pdf.SetX(rateColumnOffset)
-        _ = pdf.Cell(nil, currencySymbols[file.Currency]+strconv.FormatFloat(rate, 'f', 2, 64))
+        _ = pdf.Cell(nil, currencySymbol+strconv.FormatFloat(rate, 'f', 2, 64))
         pdf.SetX(amountColumnOffset)
-        _ = pdf.Cell(nil, currencySymbols[file.Currency]+amount)
+        _ = pdf.Cell(nil, currencySymbol+amount)
         pdf.Br(20) // Reduced row spacing
 }
 
 func writeTotals(pdf *gopdf.GoPdf, subtotal float64, tax float64, discount float64) {
-        // Position the totals at a fixed X position but with appropriate Y position
-        currentY := 600.0
+        // Get the current Y position - use dynamic positioning instead of fixed
+        currentY := pdf.GetY() + 20
 
         // Set X position for the totals section (using absolute positioning)
         pdf.SetX(350) // Fixed position for labels
         pdf.SetY(currentY)
 
-        writeTotal(pdf, subtotalLabel, subtotal)
+        // Get currency symbol safely
+        currencySymbol := getCurrencySymbol(file.Currency)
+
+        writeTotal(pdf, subtotalLabel, subtotal, currencySymbol)
         if tax > 0 {
-                writeTotal(pdf, taxLabel, tax)
+                writeTotal(pdf, taxLabel, tax, currencySymbol)
         }
         if discount > 0 {
-                writeTotal(pdf, discountLabel, discount)
+                writeTotal(pdf, discountLabel, discount, currencySymbol)
         }
-        writeTotal(pdf, totalLabel, subtotal+tax-discount)
+        writeTotal(pdf, totalLabel, subtotal+tax-discount, currencySymbol)
 }
 
-func writeTotal(pdf *gopdf.GoPdf, label string, total float64) {
+// Updated to accept currency symbol as parameter
+func writeTotal(pdf *gopdf.GoPdf, label string, total float64, currencySymbol string) {
         _ = pdf.SetFont("Inter", "", 9)
         pdf.SetTextColor(75, 75, 75)
         pdf.SetX(350) // Fixed position for labels
@@ -364,8 +367,18 @@ func writeTotal(pdf *gopdf.GoPdf, label string, total float64) {
         if label == totalLabel {
                 _ = pdf.SetFont("Inter-Bold", "", 11.5)
         }
-        _ = pdf.Cell(nil, currencySymbols[file.Currency]+strconv.FormatFloat(total, 'f', 2, 64))
+        _ = pdf.Cell(nil, currencySymbol+strconv.FormatFloat(total, 'f', 2, 64))
         pdf.Br(24)
+}
+
+// Helper function to safely get currency symbol
+func getCurrencySymbol(currency string) string {
+        symbol, exists := currencySymbols[currency]
+        if !exists {
+                // If the currency doesn't exist in our map, return the currency code as fallback
+                return currency + " "
+        }
+        return symbol
 }
 
 func getImageDimension(imagePath string) (int, int) {
