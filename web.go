@@ -53,8 +53,8 @@ var HTMLTemplates = map[string]string{
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
     <link href="/static/css/style.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
@@ -205,41 +205,37 @@ var HTMLTemplates = map[string]string{
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Dark mode toggle functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const toggleSwitch = document.getElementById('theme-toggle');
-            
-            // Check for saved theme preference
-            const currentTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            
-            // Set the toggle position based on saved preference
-            if (currentTheme === 'dark') {
-                toggleSwitch.checked = true;
-            }
-            
-            // Theme switch event listener
-            toggleSwitch.addEventListener('change', function() {
-                if (this.checked) {
-                    document.documentElement.setAttribute('data-theme', 'dark');
-                    localStorage.setItem('theme', 'dark');
-                } else {
-                    document.documentElement.setAttribute('data-theme', 'light');
-                    localStorage.setItem('theme', 'light');
-                }
-            });
-            
-            // Get config files on page load
-            fetch('/api/config-files')
-                .then(response => response.json())
-                .then(data => {
-                    const select = document.getElementById('configFile');
-                    data.files.forEach(file => {
-                        const option = document.createElement('option');
-                        option.value = file;
-                        option.textContent = file;
-                        select.appendChild(option);
-                    });
-                });
+	document.addEventListener('DOMContentLoaded', function() {
+	    // Find the toggle switch
+	    const toggleSwitch = document.getElementById('theme-toggle');
+	    if (!toggleSwitch) {
+	        console.error('Theme toggle switch not found!');
+	        return;
+	    }
+	    
+	    // Function to set theme
+	    function setTheme(themeName) {
+	        document.documentElement.setAttribute('data-theme', themeName);
+	        localStorage.setItem('theme', themeName);
+	        console.log('Theme set to:', themeName);
+	    }
+	    
+	    // Check for saved theme preference or use default
+	    const savedTheme = localStorage.getItem('theme') || 'light';
+	    setTheme(savedTheme);
+	    
+	    // Set the toggle switch position based on the current theme
+	    toggleSwitch.checked = savedTheme === 'dark';
+	    
+	    // Add event listener to the toggle switch
+	    toggleSwitch.addEventListener('change', function(event) {
+	        if (event.target.checked) {
+	            setTheme('dark');
+	        } else {
+	            setTheme('light');
+	        }
+	    });
+	});
                 
             // Add event listener for config file selection
             document.getElementById('configFile').addEventListener('change', function() {
