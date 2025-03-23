@@ -593,16 +593,17 @@ func runWebServer(webConfig WebConfig) error {
 func findConfigFiles() ([]string, error) {
 	var files []string
 
-	// Find JSON and YAML files in the current directory
-	jsonFiles, err := filepath.Glob("*.json")
+	// Find JSON and YAML files in the config directory
+	configDir := "config"
+	jsonFiles, err := filepath.Glob(filepath.Join(configDir, "*.json"))
 	if err != nil {
 		return nil, err
 	}
-	ymlFiles, err := filepath.Glob("*.yml")
+	ymlFiles, err := filepath.Glob(filepath.Join(configDir, "*.yml"))
 	if err != nil {
 		return nil, err
 	}
-	yamlFiles, err := filepath.Glob("*.yaml")
+	yamlFiles, err := filepath.Glob(filepath.Join(configDir, "*.yaml"))
 	if err != nil {
 		return nil, err
 	}
@@ -616,7 +617,8 @@ func findConfigFiles() ([]string, error) {
 	var configFiles []string
 	for _, file := range files {
 		// Skip known non-invoice config files
-		if file == "currency_config.json" || file == "web_config.json" {
+		basename := filepath.Base(file)
+		if basename == "currency.json" || basename == "web_config.json" {
 			continue
 		}
 		configFiles = append(configFiles, file)
@@ -799,6 +801,11 @@ func uploadToNextcloud(filename, scriptPath, nextcloudURL, shareID string) (Uplo
 }
 // getConfigData loads and returns the data from a config file
 func getConfigData(filename string) (map[string]interface{}, error) {
+	// Ensure we're looking in the config directory
+	if filepath.Dir(filename) == "." {
+		filename = filepath.Join("config", filename)
+	}
+
 	// Read the file
 	fileText, err := os.ReadFile(filename)
 	if err != nil {

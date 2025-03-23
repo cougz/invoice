@@ -4,6 +4,7 @@ import (
         "encoding/json"
         "fmt"
         "os"
+        "path/filepath"
         "strings"
 
         "github.com/spf13/pflag"
@@ -11,6 +12,11 @@ import (
 )
 
 func importData(path string, structure *Invoice, flags *pflag.FlagSet) error {
+        // Check if path doesn't have a directory prefix, assume it's in config dir
+        if filepath.Dir(path) == "." {
+                path = filepath.Join("config", path)
+        }
+        
         // Read the file
         fileText, err := os.ReadFile(path)
         if err != nil {

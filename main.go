@@ -325,7 +325,7 @@ var exportConfigCmd = &cobra.Command{
 
 func init() {
 	// Add web server flags
-	webCmd.Flags().String("config", "web_config.json", "Path to web server configuration file")
+	webCmd.Flags().String("config", "config/web_config.json", "Path to web server configuration file")
 }
 
 func main() {

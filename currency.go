@@ -52,7 +52,6 @@ func init() {
 
 	// Look for currency configuration in standard locations
 	configLocations := []string{
-		"currency_config.json",
 		filepath.Join("config", "currency.json"),
 		filepath.Join(os.Getenv("HOME"), ".config", "invoice", "currency.json"),
 	}
@@ -114,6 +113,11 @@ func exportCurrencyConfig(configPath string) error {
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("error marshaling currency config: %v", err)
+	}
+	
+	// If no directory specified, use config directory
+	if filepath.Dir(configPath) == "." {
+		configPath = filepath.Join("config", configPath)
 	}
 	
 	err = os.MkdirAll(filepath.Dir(configPath), 0755)
