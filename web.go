@@ -235,7 +235,6 @@ var HTMLTemplates = map[string]string{
 	            setTheme('light');
 	        }
 	    });
-	});
                 
             // Add event listener for config file selection
             document.getElementById('configFile').addEventListener('change', function() {
