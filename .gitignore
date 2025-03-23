@@ -4,3 +4,6 @@
 *.yml
 *.sh
 !.github/workflows/*.yml
+invoice
+demo.gif
+invoice.tape

@@ -2,6 +2,28 @@
 
 This invoice generator application includes German localization for businesses operating in Germany or German-speaking regions, and now features a web-based interface for easier invoice generation.
 
+## Installation
+
+### Build from Source
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/maaslalani/invoice.git
+   cd invoice
+   ```
+
+2. Build the application:
+   ```bash
+   go build
+   ```
+
+3. (Optional) Install to your PATH:
+   ```bash
+   go install
+   ```
+
+This will create the `invoice` executable that you can run from the command line.
+
 ## Features
 
 - Command-line and web-based interfaces
