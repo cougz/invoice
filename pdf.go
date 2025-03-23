@@ -239,23 +239,56 @@ func writeFooter(pdf *gopdf.GoPdf, id string) {
     // Get the footer values from the invoice
     footer := file.Footer
 
+    // Define column widths and positions
+    leftColX := 40.0
+    leftColWidth := 150.0
+    
+    middleColX := 215.0
+    middleColWidth := 160.0
+    
+    rightColX := 400.0
+    
+    lineHeight := 10.0 // Space between lines
+
     // Column 1 - Left
-    startY := pdf.GetY()
-    pdf.SetX(40)
+    currentY := pdf.GetY()
+    startY := currentY
+
+    // Company name
+    pdf.SetX(leftColX)
     _ = pdf.Cell(nil, footer.CompanyName)
-    pdf.Br(10) // Reduced space
-    pdf.SetX(40)
-    _ = pdf.Cell(nil, footer.RegistrationInfo)
-    pdf.Br(10) // Reduced space
-    pdf.SetX(40)
+    pdf.Br(lineHeight)
+    
+    // Registration info - using multiline text handling
+    pdf.SetX(leftColX)
+    formattedRegInfo := strings.ReplaceAll(footer.RegistrationInfo, `\n`, "\n")
+    if strings.Contains(formattedRegInfo, "\n") {
+        // If it contains newlines, use multiline text
+        currentY = pdf.GetY()
+        newY := writeMultilineText(pdf, formattedRegInfo, leftColX, currentY, leftColWidth, lineHeight)
+        // Set Y position after multiline text
+        pdf.SetY(newY)
+    } else {
+        // Single line
+        _ = pdf.Cell(nil, formattedRegInfo)
+        pdf.Br(lineHeight)
+    }
+    
+    // VAT ID
+    pdf.SetX(leftColX)
     _ = pdf.Cell(nil, footer.VatId)
 
     // Column 2 - Middle
     pdf.SetY(startY)
-    pdf.SetX(215)
+    currentY = startY
+    
+    // Address
+    pdf.SetX(middleColX)
     _ = pdf.Cell(nil, footer.Address)
-    pdf.Br(10) // Reduced space
-    pdf.SetX(215)
+    pdf.Br(lineHeight)
+    
+    // Zip and City
+    pdf.SetX(middleColX)
     zipCity := footer.Zip
     if zipCity != "" && footer.City != "" {
         zipCity += " " + footer.City
@@ -263,13 +296,17 @@ func writeFooter(pdf *gopdf.GoPdf, id string) {
         zipCity = footer.City
     }
     _ = pdf.Cell(nil, zipCity)
-    pdf.Br(10) // Reduced space
-    pdf.SetX(215)
+    pdf.Br(lineHeight)
+    
+    // Phone
+    pdf.SetX(middleColX)
     if footer.Phone != "" {
         _ = pdf.Cell(nil, "Tel.: " + footer.Phone)
     }
-    pdf.Br(10) // Reduced space
-    pdf.SetX(215)
+    pdf.Br(lineHeight)
+    
+    // Email and Website
+    pdf.SetX(middleColX)
     contactInfo := ""
     if footer.Email != "" {
         contactInfo = footer.Email
@@ -279,22 +316,37 @@ func writeFooter(pdf *gopdf.GoPdf, id string) {
     } else if footer.Website != "" {
         contactInfo = footer.Website
     }
-    _ = pdf.Cell(nil, contactInfo)
+    
+    // Check if contact info is long and needs wrapping
+    if len(contactInfo) > 30 {
+        currentY = pdf.GetY()
+        writeMultilineText(pdf, contactInfo, middleColX, currentY, middleColWidth, lineHeight)
+    } else {
+        _ = pdf.Cell(nil, contactInfo)
+    }
 
     // Column 3 - Right
     pdf.SetY(startY)
-    pdf.SetX(400)
+    
+    // Bank header
+    pdf.SetX(rightColX)
     _ = pdf.Cell(nil, "Bankverbindung:")
-    pdf.Br(10) // Reduced space
-    pdf.SetX(400)
+    pdf.Br(lineHeight)
+    
+    // Bank name
+    pdf.SetX(rightColX)
     _ = pdf.Cell(nil, footer.BankName)
-    pdf.Br(10) // Reduced space
-    pdf.SetX(400)
+    pdf.Br(lineHeight)
+    
+    // IBAN
+    pdf.SetX(rightColX)
     if footer.BankIban != "" {
         _ = pdf.Cell(nil, "IBAN: " + footer.BankIban)
     }
-    pdf.Br(10) // Reduced space
-    pdf.SetX(400)
+    pdf.Br(lineHeight)
+    
+    // BIC
+    pdf.SetX(rightColX)
     if footer.BankBic != "" {
         _ = pdf.Cell(nil, "BIC: " + footer.BankBic)
     }
