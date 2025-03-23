@@ -20,8 +20,9 @@ var interFont []byte
 var interBoldFont []byte
 
 type Invoice struct {
-	Id    string `json:"id" yaml:"id"`
-	Title string `json:"title" yaml:"title"`
+	Id            string `json:"id" yaml:"id"`
+	IdSuffix      string `json:"idSuffix" yaml:"idSuffix"` // New field for invoice number suffix
+	Title         string `json:"title" yaml:"title"`
 
 	Logo string `json:"logo" yaml:"logo"`
 	From string `json:"from" yaml:"from"`
@@ -43,17 +44,18 @@ type Invoice struct {
 func DefaultInvoice() Invoice {
 	return Invoice{
 		Id:         time.Now().Format("20060102"),
-		Title:      "INVOICE",
+		IdSuffix:   "",  // Default empty suffix
+		Title:      "RECHNUNG", // Use German title
 		Rates:      []float64{25},
 		Quantities: []int{2},
-		Items:      []string{"Paper Cranes"},
-		From:       "Project Folded, Inc.",
-		To:         "Untitled Corporation, Inc.",
-		Date:       time.Now().Format("Jan 02, 2006"),
-		Due:        time.Now().AddDate(0, 0, 14).Format("Jan 02, 2006"),
-		Tax:        0,
+		Items:      []string{"Dienstleistung"}, // Changed to German default
+		From:       "Firma GmbH",  // Changed to German default
+		To:         "Kunde GmbH",  // Changed to German default
+		Date:       time.Now().Format("02.01.2006"), // German date format (day.month.year)
+		Due:        time.Now().AddDate(0, 0, 14).Format("02.01.2006"), // German date format
+		Tax:        0.19, // Default German VAT rate (19%)
 		Discount:   0,
-		Currency:   "USD",
+		Currency:   "EUR", // Default to Euro
 	}
 }
 
@@ -69,7 +71,8 @@ func init() {
 
 	generateCmd.Flags().StringVar(&importPath, "import", "", "Imported file (.json/.yaml)")
 	generateCmd.Flags().StringVar(&file.Id, "id", time.Now().Format("20060102"), "ID")
-	generateCmd.Flags().StringVar(&file.Title, "title", "INVOICE", "Title")
+	generateCmd.Flags().StringVar(&file.IdSuffix, "id-suffix", "", "Invoice Number Suffix (e.g. -R1, -A, etc.)")
+	generateCmd.Flags().StringVar(&file.Title, "title", "RECHNUNG", "Title")
 
 	generateCmd.Flags().Float64SliceVarP(&file.Rates, "rate", "r", defaultInvoice.Rates, "Rates")
 	generateCmd.Flags().IntSliceVarP(&file.Quantities, "quantity", "q", defaultInvoice.Quantities, "Quantities")
@@ -110,6 +113,12 @@ var generateCmd = &cobra.Command{
 			}
 		}
 
+		// Combine ID and IdSuffix for the full invoice number
+		fullInvoiceId := file.Id
+		if file.IdSuffix != "" {
+			fullInvoiceId = file.Id + file.IdSuffix
+		}
+
 		pdf := gopdf.GoPdf{}
 		pdf.Start(gopdf.Config{
 			PageSize: *gopdf.PageSizeA4,
@@ -127,7 +136,7 @@ var generateCmd = &cobra.Command{
 		}
 
 		writeLogo(&pdf, file.Logo, file.From)
-		writeTitle(&pdf, file.Title, file.Id, file.Date)
+		writeTitle(&pdf, file.Title, fullInvoiceId, file.Date) // Use full invoice ID with suffix
 		writeBillTo(&pdf, file.To)
 		writeHeaderRow(&pdf)
 		subtotal := 0.0
@@ -145,14 +154,19 @@ var generateCmd = &cobra.Command{
 			writeRow(&pdf, file.Items[i], q, r)
 			subtotal += float64(q) * r
 		}
+
+		// Write notes first before totals
 		if file.Note != "" {
 			writeNotes(&pdf, file.Note)
 		}
+
+		// Then write totals (will be positioned on the right side)
 		writeTotals(&pdf, subtotal, subtotal*file.Tax, subtotal*file.Discount)
+
 		if file.Due != "" {
 			writeDueDate(&pdf, file.Due)
 		}
-		writeFooter(&pdf, file.Id)
+		writeFooter(&pdf, fullInvoiceId) // Use full invoice ID with suffix in footer
 		output = strings.TrimSuffix(output, ".pdf") + ".pdf"
 		err = pdf.WritePdf(output)
 		if err != nil {
