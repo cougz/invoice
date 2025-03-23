@@ -14,10 +14,8 @@ import (
         "github.com/spf13/viper"
 )
 
-//go:embed "Inter/Inter Variable/Inter.ttf"
+// Removed embed directives as the Inter font directory was deleted
 var interFont []byte
-
-//go:embed "Inter/Inter Hinted for Windows/Desktop/Inter-Bold.ttf"
 var interBoldFont []byte
 
 type Footer struct {
@@ -161,15 +159,16 @@ var generateCmd = &cobra.Command{
                 })
                 pdf.SetMargins(40, 40, 40, 40)
                 pdf.AddPage()
-                err := pdf.AddTTFFontData("Inter", interFont)
-                if err != nil {
-                        return err
-                }
-
-                err = pdf.AddTTFFontData("Inter-Bold", interBoldFont)
-                if err != nil {
-                        return err
-                }
+                // Try to use included fonts, but since they're not available, show a simple message
+                fmt.Println("Error: The Inter fonts are missing. Please download and restore the Inter font files.")
+                fmt.Println("You can download them from: https://github.com/rsms/inter")
+                fmt.Println("Directories needed:")
+                fmt.Println("- Inter/Inter Variable/Inter.ttf")
+                fmt.Println("- Inter/Inter Hinted for Windows/Desktop/Inter-Bold.ttf")
+                
+                var err error
+                err = fmt.Errorf("missing required font files")
+                return err
 
                 writeLogo(&pdf, file.Logo, file.From)
                 writeTitle(&pdf, file.Title, fullInvoiceId, file.Date) // Use full invoice ID with suffix
