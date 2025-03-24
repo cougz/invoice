@@ -243,6 +243,51 @@ var HTMLTemplates = map[string]string{
                 }
             });
             
+            // Add event listeners to automatically deselect config file when user changes form values
+            function addChangeListenerToFormElements() {
+                // Add listeners to all form input fields
+                const formInputs = document.querySelectorAll('#invoice-form input, #invoice-form textarea, #invoice-form select:not(#configFile)');
+                formInputs.forEach(function(input) {
+                    // Listen for both change and input events to catch all modifications
+                    ['change', 'input'].forEach(function(eventType) {
+                        input.addEventListener(eventType, function() {
+                            // Only deselect if a config file is currently selected
+                            const configSelect = document.getElementById('configFile');
+                            if (configSelect.value !== "") {
+                                console.log('Form field changed, deselecting config file');
+                                configSelect.value = "";
+                            }
+                        });
+                    });
+                });
+                
+                // Add specific listener for item add/remove buttons
+                document.getElementById('add-item').addEventListener('click', function() {
+                    const configSelect = document.getElementById('configFile');
+                    if (configSelect.value !== "") {
+                        configSelect.value = "";
+                    }
+                    
+                    // Add listeners to the new row's inputs
+                    setTimeout(function() {
+                        addChangeListenerToFormElements();
+                    }, 100);
+                });
+                
+                // Listen for remove item events through event delegation
+                document.getElementById('items-container').addEventListener('click', function(e) {
+                    if (e.target.classList.contains('remove-item')) {
+                        const configSelect = document.getElementById('configFile');
+                        if (configSelect.value !== "") {
+                            configSelect.value = "";
+                        }
+                    }
+                });
+            }
+            
+            // Initial setup of change listeners
+            addChangeListenerToFormElements();
+            
             // Load available config files when page loads
             loadConfigFiles();
         });
@@ -407,6 +452,9 @@ var HTMLTemplates = map[string]string{
                 rates.push(row.querySelector('.item-rate').value);
             });
             
+            // Get config file value
+            const configFileValue = document.getElementById('configFile').value;
+            
             // Create form data
             const formData = {
                 from: document.getElementById('from').value,
@@ -420,8 +468,9 @@ var HTMLTemplates = map[string]string{
                 note: document.getElementById('note').value,
                 id: document.getElementById('id').value,
                 idSuffix: document.getElementById('idSuffix').value,
-                useConfig: document.getElementById('configFile').value !== "",
-                configFile: document.getElementById('configFile').value
+                // Only use config if a config file is selected in the dropdown
+                useConfig: configFileValue !== "",
+                configFile: configFileValue
             };
             
             generateInvoice(formData);
