@@ -259,24 +259,28 @@ func writeFooter(pdf *gopdf.GoPdf, id string) {
     _ = pdf.Cell(nil, footer.CompanyName)
     pdf.Br(lineHeight)
     
-    // Registration info - using multiline text handling
-    pdf.SetX(leftColX)
-    formattedRegInfo := strings.ReplaceAll(footer.RegistrationInfo, `\n`, "\n")
-    if strings.Contains(formattedRegInfo, "\n") {
-        // If it contains newlines, use multiline text
-        currentY = pdf.GetY()
-        newY := writeMultilineText(pdf, formattedRegInfo, leftColX, currentY, leftColWidth, lineHeight)
-        // Set Y position after multiline text
-        pdf.SetY(newY)
-    } else {
-        // Single line
-        _ = pdf.Cell(nil, formattedRegInfo)
-        pdf.Br(lineHeight)
+    // Registration info - only if it should be shown
+    if footer.ShowRegistration && footer.RegistrationInfo != "" {
+        pdf.SetX(leftColX)
+        formattedRegInfo := strings.ReplaceAll(footer.RegistrationInfo, `\n`, "\n")
+        if strings.Contains(formattedRegInfo, "\n") {
+            // If it contains newlines, use multiline text
+            currentY = pdf.GetY()
+            newY := writeMultilineText(pdf, formattedRegInfo, leftColX, currentY, leftColWidth, lineHeight)
+            // Set Y position after multiline text
+            pdf.SetY(newY)
+        } else {
+            // Single line
+            _ = pdf.Cell(nil, formattedRegInfo)
+            pdf.Br(lineHeight)
+        }
     }
     
-    // VAT ID
-    pdf.SetX(leftColX)
-    _ = pdf.Cell(nil, footer.VatId)
+    // VAT ID - only if it should be shown
+    if footer.ShowVatId && footer.VatId != "" {
+        pdf.SetX(leftColX)
+        _ = pdf.Cell(nil, footer.VatId)
+    }
 
     // Column 2 - Middle
     pdf.SetY(startY)
@@ -398,13 +402,30 @@ func writeTotals(pdf *gopdf.GoPdf, subtotal float64, tax float64, discount float
         currencySymbol := getCurrencySymbol(file.Currency)
 
         writeTotal(pdf, subtotalLabel, subtotal, currencySymbol)
-        if tax > 0 {
+        
+        // Only show tax if not exempt
+        if !file.TaxExempt && tax > 0 {
                 writeTotal(pdf, taxLabel, tax, currencySymbol)
+        } else if file.TaxExempt {
+                // Add a note about tax exemption (Kleinunternehmer-Regelung)
+                pdf.SetX(350)
+                _ = pdf.SetFont("Inter", "", 9)
+                pdf.SetTextColor(75, 75, 75)
+                _ = pdf.Cell(nil, "Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.")
+                pdf.Br(24)
         }
+        
         if discount > 0 {
                 writeTotal(pdf, discountLabel, discount, currencySymbol)
         }
-        writeTotal(pdf, totalLabel, subtotal+tax-discount, currencySymbol)
+        
+        // Calculate total - only add tax if not exempt
+        total := subtotal - discount
+        if !file.TaxExempt {
+                total += tax
+        }
+        
+        writeTotal(pdf, totalLabel, total, currencySymbol)
 }
 
 // Updated to accept currency symbol as parameter

@@ -24,7 +24,9 @@ const (
 type Footer struct {
         CompanyName      string `json:"companyName" yaml:"companyName"`
         RegistrationInfo string `json:"registrationInfo" yaml:"registrationInfo"`
+        ShowRegistration bool   `json:"showRegistration" yaml:"showRegistration"`
         VatId            string `json:"vatId" yaml:"vatId"`
+        ShowVatId        bool   `json:"showVatId" yaml:"showVatId"`
         Address          string `json:"address" yaml:"address"`
         City             string `json:"city" yaml:"city"`
         Zip              string `json:"zip" yaml:"zip"`
@@ -51,9 +53,10 @@ type Invoice struct {
         Quantities []int     `json:"quantities" yaml:"quantities"`
         Rates      []float64 `json:"rates" yaml:"rates"`
 
-        Tax      float64 `json:"tax" yaml:"tax"`
-        Discount float64 `json:"discount" yaml:"discount"`
-        Currency string  `json:"currency" yaml:"currency"`
+        Tax           float64 `json:"tax" yaml:"tax"`
+        TaxExempt     bool    `json:"taxExempt" yaml:"taxExempt"` // Tax exemption (Kleinunternehmer-Regelung)
+        Discount      float64 `json:"discount" yaml:"discount"`
+        Currency      string  `json:"currency" yaml:"currency"` 
 
         Note string `json:"note" yaml:"note"`
 
@@ -65,7 +68,9 @@ func DefaultFooter() Footer {
         return Footer{
                 CompanyName:      "Firma GmbH",
                 RegistrationInfo: "Registergericht München, HRB 123456",
+                ShowRegistration: true,  // Default to showing registration info
                 VatId:            "USt-IdNr. DE123456789",
+                ShowVatId:        true,  // Default to showing VAT ID
                 Address:          "Musterstraße 123",
                 City:             "München",
                 Zip:              "80331",
@@ -91,6 +96,7 @@ func DefaultInvoice() Invoice {
                 Date:       time.Now().Format("02.01.2006"), // German date format (day.month.year)
                 Due:        time.Now().AddDate(0, 0, 14).Format("02.01.2006"), // German date format
                 Tax:        0.19, // Default German VAT rate (19%)
+                TaxExempt:  false, // Default to tax inclusion
                 Discount:   0,
                 Currency:   "EUR", // Default to Euro
                 Footer:     DefaultFooter(), // Default footer information
@@ -123,6 +129,7 @@ func init() {
         generateCmd.Flags().StringVar(&file.Due, "due", defaultInvoice.Due, "Payment due date")
 
         generateCmd.Flags().Float64Var(&file.Tax, "tax", defaultInvoice.Tax, "Tax")
+        generateCmd.Flags().BoolVar(&file.TaxExempt, "tax-exempt", defaultInvoice.TaxExempt, "Tax exemption (Kleinunternehmer-Regelung)")
         generateCmd.Flags().Float64VarP(&file.Discount, "discount", "d", defaultInvoice.Discount, "Discount")
         generateCmd.Flags().StringVarP(&file.Currency, "currency", "c", defaultInvoice.Currency, "Currency")
 

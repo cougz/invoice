@@ -23,19 +23,22 @@ type WebConfig struct {
 
 // InvoiceRequest represents the form data from the web UI
 type InvoiceRequest struct {
-	From       string  `json:"from"`
-	To         string  `json:"to"`
-	Items      string  `json:"items"`
-	Quantities string  `json:"quantities"`
-	Rates      string  `json:"rates"`
-	Tax        float64 `json:"tax"`
-	Discount   float64 `json:"discount"`
-	Currency   string  `json:"currency"`
-	Note       string  `json:"note"`
-	Id         string  `json:"id"`
-	IdSuffix   string  `json:"idSuffix"`
-	ConfigFile string  `json:"configFile"`
-	UseConfig  bool    `json:"useConfig"`
+	From            string  `json:"from"`
+	To              string  `json:"to"`
+	Items           string  `json:"items"`
+	Quantities      string  `json:"quantities"`
+	Rates           string  `json:"rates"`
+	Tax             float64 `json:"tax"`
+	TaxExempt       bool    `json:"taxExempt"`
+	Discount        float64 `json:"discount"`
+	Currency        string  `json:"currency"`
+	Note            string  `json:"note"`
+	Id              string  `json:"id"`
+	IdSuffix        string  `json:"idSuffix"`
+	ConfigFile      string  `json:"configFile"`
+	UseConfig       bool    `json:"useConfig"`
+	ShowRegistration bool   `json:"showRegistration"`
+	ShowVatId       bool    `json:"showVatId"`
 }
 
 // UploadResult represents the result of an upload operation
@@ -115,6 +118,11 @@ var HTMLTemplates = map[string]string{
                                 <input type="number" class="form-control" id="tax" name="tax" step="0.01" value="0.19" required>
                                 <small class="text-muted">Default: 19%</small>
                             </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="taxExempt" name="taxExempt">
+                                <label class="form-check-label" for="taxExempt">Tax exemption (Kleinunternehmer-Regelung)</label>
+                                <small class="form-text text-muted d-block">Check this if you are exempt from charging VAT</small>
+                            </div>
                             <div class="mb-3">
                                 <label for="discount" class="form-label">Discount Rate</label>
                                 <input type="number" class="form-control" id="discount" name="discount" step="0.01" value="0">
@@ -131,6 +139,15 @@ var HTMLTemplates = map[string]string{
                                     <option value="CAD">CAD (C$)</option>
                                     <option value="AUD">AUD (A$)</option>
                                 </select>
+                            </div>
+                            <!-- Footer field visibility options -->
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="showRegistration" name="showRegistration" checked>
+                                <label class="form-check-label" for="showRegistration">Show Registration Info in Footer</label>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="showVatId" name="showVatId" checked>
+                                <label class="form-check-label" for="showVatId">Show VAT ID in Footer</label>
                             </div>
                             <div class="mb-3">
                                 <label for="note" class="form-label">Note</label>
@@ -236,6 +253,18 @@ var HTMLTemplates = map[string]string{
 	        }
 	    });
                 
+            // Toggle tax field based on tax exemption status
+            document.getElementById('taxExempt').addEventListener('change', function() {
+                const taxField = document.getElementById('tax');
+                if (this.checked) {
+                    taxField.setAttribute('disabled', 'disabled');
+                    taxField.value = '0';
+                } else {
+                    taxField.removeAttribute('disabled');
+                    taxField.value = '0.19'; // Reset to default German VAT
+                }
+            });
+            
             // Add event listener for config file selection
             document.getElementById('configFile').addEventListener('change', function() {
                 if (this.value) {
@@ -346,6 +375,14 @@ var HTMLTemplates = map[string]string{
             if (data.from) document.getElementById('from').value = data.from;
             if (data.to) document.getElementById('to').value = data.to;
             if (data.tax !== undefined) document.getElementById('tax').value = data.tax;
+            if (data.taxExempt !== undefined) document.getElementById('taxExempt').checked = data.taxExempt;
+            // Handle disabled state for tax field if tax exempt
+            if (data.taxExempt) {
+                document.getElementById('tax').setAttribute('disabled', 'disabled');
+            }
+            // Footer visibility options
+            if (data.showRegistration !== undefined) document.getElementById('showRegistration').checked = data.showRegistration;
+            if (data.showVatId !== undefined) document.getElementById('showVatId').checked = data.showVatId;
             if (data.discount !== undefined) document.getElementById('discount').value = data.discount;
             if (data.currency) {
                 const currencySelect = document.getElementById('currency');
@@ -463,8 +500,12 @@ var HTMLTemplates = map[string]string{
                 quantities: quantities.join('||'),
                 rates: rates.join('||'),
                 tax: parseFloat(document.getElementById('tax').value),
+                taxExempt: document.getElementById('taxExempt').checked,
                 discount: parseFloat(document.getElementById('discount').value),
                 currency: document.getElementById('currency').value,
+                // Footer visibility options
+                showRegistration: document.getElementById('showRegistration').checked,
+                showVatId: document.getElementById('showVatId').checked,
                 note: document.getElementById('note').value,
                 id: document.getElementById('id').value,
                 idSuffix: document.getElementById('idSuffix').value,
@@ -762,6 +803,9 @@ func generateInvoiceFromRequest(request InvoiceRequest) (string, error) {
 		if request.Tax != 0 {
 			args = append(args, "--tax", fmt.Sprintf("%f", request.Tax))
 		}
+		if request.TaxExempt {
+			args = append(args, "--tax-exempt")
+		}
 		if request.Discount != 0 {
 			args = append(args, "--discount", fmt.Sprintf("%f", request.Discount))
 		}
@@ -781,6 +825,13 @@ func generateInvoiceFromRequest(request InvoiceRequest) (string, error) {
 		}
 		if request.To != "" {
 			args = append(args, "--to", request.To)
+		}
+		
+		// Create a custom config file with footer visibility settings
+		tempConfig, err := createTempConfigWithFooterSettings(request)
+		if err == nil && tempConfig != "" {
+			// Use the temp config
+			args = append(args, "--import", tempConfig)
 		}
 
 		// Process items, quantities, and rates
@@ -803,6 +854,9 @@ func generateInvoiceFromRequest(request InvoiceRequest) (string, error) {
 		// Add additional fields
 		if request.Tax != 0 {
 			args = append(args, "--tax", fmt.Sprintf("%f", request.Tax))
+		}
+		if request.TaxExempt {
+			args = append(args, "--tax-exempt")
 		}
 		if request.Discount != 0 {
 			args = append(args, "--discount", fmt.Sprintf("%f", request.Discount))
@@ -887,7 +941,35 @@ func uploadToNextcloud(filename, scriptPath, nextcloudURL, shareID string) (Uplo
         
         return result, nil
 }
-// getConfigData loads and returns the data from a config file
+// createTempConfigWithFooterSettings creates a temporary config file with footer visibility settings
+func createTempConfigWithFooterSettings(request InvoiceRequest) (string, error) {
+	// Create a minimal invoice with just the footer settings
+	invoice := DefaultInvoice()
+	
+	// Set footer visibility settings
+	invoice.Footer.ShowRegistration = request.ShowRegistration
+	invoice.Footer.ShowVatId = request.ShowVatId
+	
+	// Create a temporary file
+	tmpFile, err := os.CreateTemp("", "invoice-config-*.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %v", err)
+	}
+	defer tmpFile.Close()
+	
+	// Write the JSON data to the file
+	data, err := json.MarshalIndent(invoice, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %v", err)
+	}
+	
+	if _, err := tmpFile.Write(data); err != nil {
+		return "", fmt.Errorf("failed to write to temp file: %v", err)
+	}
+	
+	return tmpFile.Name(), nil
+}
+
 func getConfigData(filename string) (map[string]interface{}, error) {
 	// Ensure we're looking in the config directory
 	if filepath.Dir(filename) == "." {
