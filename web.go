@@ -39,6 +39,7 @@ type InvoiceRequest struct {
 	UseConfig       bool    `json:"useConfig"`
 	ShowRegistration bool   `json:"showRegistration"`
 	ShowVatId       bool    `json:"showVatId"`
+	CompanyName     string  `json:"companyName"` // Added to use in footer
 }
 
 // UploadResult represents the result of an upload operation
@@ -254,7 +255,7 @@ var HTMLTemplates = map[string]string{
 	    });
                 
             // Toggle tax field based on tax exemption status
-            document.getElementById('taxExempt').addEventListener('change', function() {
+            document.getElementById('taxExempt').addEventListener('change', function(event) {
                 const taxField = document.getElementById('tax');
                 if (this.checked) {
                     taxField.setAttribute('disabled', 'disabled');
@@ -262,6 +263,14 @@ var HTMLTemplates = map[string]string{
                 } else {
                     taxField.removeAttribute('disabled');
                     taxField.value = '0.19'; // Reset to default German VAT
+                }
+                
+                // Don't clear the config selection for this checkbox
+                // This fixes the double-click issue with tax exemption checkbox
+                const configSelect = document.getElementById('configFile');
+                if (configSelect.value !== "") {
+                    // Prevent this event from triggering the auto-deselection
+                    event.stopImmediatePropagation();
                 }
             });
             
@@ -301,6 +310,22 @@ var HTMLTemplates = map[string]string{
                     setTimeout(function() {
                         addChangeListenerToFormElements();
                     }, 100);
+                });
+                
+                // Special handling for footer checkboxes to prevent them from auto-clearing config selection
+                const footerCheckboxes = ['showRegistration', 'showVatId', 'taxExempt'];
+                footerCheckboxes.forEach(function(id) {
+                    const checkbox = document.getElementById(id);
+                    checkbox.addEventListener('change', function(event) {
+                        // Capture the current state of checkboxes when using config files
+                        const configSelect = document.getElementById('configFile');
+                        if (configSelect.value !== "") {
+                            // For these specific checkboxes, don't clear the config selection
+                            // This prevents the double-click issue with the tax exemption checkbox
+                            // and makes the footer checkboxes work properly with config files
+                            event.stopPropagation();
+                        }
+                    }, true); // Use capturing phase to intercept before other handlers
                 });
                 
                 // Listen for remove item events through event delegation
@@ -374,15 +399,38 @@ var HTMLTemplates = map[string]string{
             // Basic fields
             if (data.from) document.getElementById('from').value = data.from;
             if (data.to) document.getElementById('to').value = data.to;
+            
+            // Tax handling - handle tax value first, before tax exemption
             if (data.tax !== undefined) document.getElementById('tax').value = data.tax;
-            if (data.taxExempt !== undefined) document.getElementById('taxExempt').checked = data.taxExempt;
-            // Handle disabled state for tax field if tax exempt
-            if (data.taxExempt) {
-                document.getElementById('tax').setAttribute('disabled', 'disabled');
+            
+            // Checkbox for tax exemption - handle with special care because of issues
+            if (data.taxExempt !== undefined) {
+                const taxExemptBox = document.getElementById('taxExempt');
+                taxExemptBox.checked = data.taxExempt;
+                
+                // Ensure tax field is properly enabled/disabled based on exemption
+                const taxField = document.getElementById('tax');
+                if (data.taxExempt) {
+                    taxField.setAttribute('disabled', 'disabled');
+                    taxField.value = '0';
+                } else {
+                    taxField.removeAttribute('disabled');
+                }
             }
-            // Footer visibility options
-            if (data.showRegistration !== undefined) document.getElementById('showRegistration').checked = data.showRegistration;
-            if (data.showVatId !== undefined) document.getElementById('showVatId').checked = data.showVatId;
+            
+            // Footer visibility options - extract these from footer object if present
+            if (data.footer) {
+                if (data.footer.showRegistration !== undefined) {
+                    document.getElementById('showRegistration').checked = data.footer.showRegistration;
+                }
+                if (data.footer.showVatId !== undefined) {
+                    document.getElementById('showVatId').checked = data.footer.showVatId;
+                }
+            } else {
+                // Backward compatibility for configs without footer object
+                if (data.showRegistration !== undefined) document.getElementById('showRegistration').checked = data.showRegistration;
+                if (data.showVatId !== undefined) document.getElementById('showVatId').checked = data.showVatId;
+            }
             if (data.discount !== undefined) document.getElementById('discount').value = data.discount;
             if (data.currency) {
                 const currencySelect = document.getElementById('currency');
@@ -506,6 +554,8 @@ var HTMLTemplates = map[string]string{
                 // Footer visibility options
                 showRegistration: document.getElementById('showRegistration').checked,
                 showVatId: document.getElementById('showVatId').checked,
+                // Extract company name from the 'from' field (first line)
+                companyName: document.getElementById('from').value.split('\n')[0],
                 note: document.getElementById('note').value,
                 id: document.getElementById('id').value,
                 idSuffix: document.getElementById('idSuffix').value,
@@ -946,9 +996,23 @@ func createTempConfigWithFooterSettings(request InvoiceRequest) (string, error) 
 	// Create a minimal invoice with just the footer settings
 	invoice := DefaultInvoice()
 	
+	// Set company name in footer - prefer explicit company name if provided
+	if request.CompanyName != "" {
+		invoice.Footer.CompanyName = request.CompanyName
+	} else if request.From != "" {
+		// Fall back to extracting from 'From' field (first line)
+		fromLines := strings.Split(request.From, "\n")
+		if len(fromLines) > 0 {
+			invoice.Footer.CompanyName = fromLines[0]
+		}
+	}
+	
 	// Set footer visibility settings
 	invoice.Footer.ShowRegistration = request.ShowRegistration
 	invoice.Footer.ShowVatId = request.ShowVatId
+	
+	// If tax exemption is checked, ensure it's reflected in the config
+	invoice.TaxExempt = request.TaxExempt
 	
 	// Create a temporary file
 	tmpFile, err := os.CreateTemp("", "invoice-config-*.json")
