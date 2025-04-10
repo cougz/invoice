@@ -224,6 +224,13 @@ func (h *WebHandler) getConfigData(filename string) (map[string]interface{}, err
 		if err != nil {
 			return nil, fmt.Errorf("invalid JSON: %v", err)
 		}
+		
+		// Ensure tax exemption is properly reflected in the UI
+		// If taxExempt is true, ensure tax is set to 0
+		if taxExempt, ok := configData["taxExempt"].(bool); ok && taxExempt {
+			configData["tax"] = 0
+		}
+		
 	} else if strings.HasSuffix(filename, ".yaml") || strings.HasSuffix(filename, ".yml") {
 		return nil, fmt.Errorf("YAML files not supported for web interface preview")
 	} else {

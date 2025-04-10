@@ -230,6 +230,13 @@ var HTMLTemplates = map[string]string{
 	        console.error('Theme toggle switch not found!');
 	        return;
 	    }
+            
+	    // Initialize tax exemption note visibility based on checkbox state
+	    const taxExemptCheckbox = document.getElementById('taxExempt');
+	    const taxExemptNote = document.querySelector('.tax-exempt-note');
+	    if (taxExemptCheckbox && taxExemptNote) {
+	        taxExemptNote.style.display = taxExemptCheckbox.checked ? 'block' : 'none';
+	    }
 	    
 	    // Function to set theme
 	    function setTheme(themeName) {
@@ -272,7 +279,17 @@ var HTMLTemplates = map[string]string{
                     // Prevent this event from triggering the auto-deselection
                     event.stopImmediatePropagation();
                 }
+                
+                // Update the form to reflect the tax exemption status
+                updateFormForTaxExemption(this.checked);
             });
+            
+            // Function to update form based on tax exemption status
+            function updateFormForTaxExemption(isExempt) {
+                // This function can be extended to show/hide additional UI elements
+                // related to tax exemption status if needed
+                console.log("Tax exemption status changed to:", isExempt);
+            }
             
             // Add event listener for config file selection
             document.getElementById('configFile').addEventListener('change', function() {
@@ -324,6 +341,14 @@ var HTMLTemplates = map[string]string{
                             // This prevents the double-click issue with the tax exemption checkbox
                             // and makes the footer checkboxes work properly with config files
                             event.stopPropagation();
+                        }
+                        
+                        // Show/hide tax exemption note when taxExempt checkbox changes
+                        if (id === 'taxExempt') {
+                            const taxExemptNote = document.querySelector('.tax-exempt-note');
+                            if (taxExemptNote) {
+                                taxExemptNote.style.display = this.checked ? 'block' : 'none';
+                            }
                         }
                     }, true); // Use capturing phase to intercept before other handlers
                 });
@@ -400,10 +425,7 @@ var HTMLTemplates = map[string]string{
             if (data.from) document.getElementById('from').value = data.from;
             if (data.to) document.getElementById('to').value = data.to;
             
-            // Tax handling - handle tax value first, before tax exemption
-            if (data.tax !== undefined) document.getElementById('tax').value = data.tax;
-            
-            // Checkbox for tax exemption - handle with special care because of issues
+            // Tax handling - handle tax exemption first, then tax value
             if (data.taxExempt !== undefined) {
                 const taxExemptBox = document.getElementById('taxExempt');
                 taxExemptBox.checked = data.taxExempt;
@@ -415,7 +437,16 @@ var HTMLTemplates = map[string]string{
                     taxField.value = '0';
                 } else {
                     taxField.removeAttribute('disabled');
+                    // Only set default if tax is not defined
+                    if (data.tax === undefined) {
+                        taxField.value = '0.19';
+                    }
                 }
+            }
+            
+            // Set tax value after handling exemption status
+            if (data.tax !== undefined && !data.taxExempt) {
+                document.getElementById('tax').value = data.tax;
             }
             
             // Footer visibility options - extract these from footer object if present
@@ -569,6 +600,11 @@ var HTMLTemplates = map[string]string{
 
         // Generate invoice function
         function generateInvoice(formData) {
+            // Ensure tax exemption is properly handled
+            if (formData.taxExempt) {
+                formData.tax = 0; // Force tax to 0 when tax exempt
+            }
+            
             fetch('/api/generate', {
                 method: 'POST',
                 headers: {
@@ -849,13 +885,17 @@ func generateInvoiceFromRequest(request InvoiceRequest) (string, error) {
 			}
 		}
 		
-		// Add additional fields if provided
-		if request.Tax != 0 {
-			args = append(args, "--tax", fmt.Sprintf("%f", request.Tax))
-		}
+		// Handle tax exemption first
 		if request.TaxExempt {
 			args = append(args, "--tax-exempt")
+			// When tax exempt, force tax to 0
+			args = append(args, "--tax", "0")
+		} else if request.Tax != 0 {
+			// Only add tax if not exempt and value is provided
+			args = append(args, "--tax", fmt.Sprintf("%f", request.Tax))
 		}
+		
+		// Add additional fields if provided
 		if request.Discount != 0 {
 			args = append(args, "--discount", fmt.Sprintf("%f", request.Discount))
 		}
@@ -1013,6 +1053,13 @@ func createTempConfigWithFooterSettings(request InvoiceRequest) (string, error) 
 	
 	// If tax exemption is checked, ensure it's reflected in the config
 	invoice.TaxExempt = request.TaxExempt
+	if request.TaxExempt {
+		// Force tax to 0 when tax exempt
+		invoice.Tax = 0
+	} else if request.Tax > 0 {
+		// Only set tax if not exempt and a value is provided
+		invoice.Tax = request.Tax
+	}
 	
 	// Create a temporary file
 	tmpFile, err := os.CreateTemp("", "invoice-config-*.json")
