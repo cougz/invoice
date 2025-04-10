@@ -150,6 +150,11 @@ var HTMLTemplates = map[string]string{
                                 <input type="checkbox" class="form-check-input" id="showVatId" name="showVatId" checked>
                                 <label class="form-check-label" for="showVatId">Show VAT ID in Footer</label>
                             </div>
+                            <div class="mb-3 form-check tax-exempt-note" style="display: none;">
+                                <div class="alert alert-info">
+                                    <small>When tax exemption is enabled, the invoice will include a note about §19 UStG (Kleinunternehmer-Regelung)</small>
+                                </div>
+                            </div>
                             <div class="mb-3">
                                 <label for="note" class="form-label">Note</label>
                                 <textarea class="form-control" id="note" name="note" rows="3" placeholder="Payment terms, additional information, etc."></textarea>
